@@ -8,9 +8,9 @@
 | Companion | [securityAssessment_LAN.md](securityAssessment_LAN.md) — same code, evaluated for the current LAN-only test deployment |
 | Methodology | OWASP Web Top 10 (2021) and OWASP API Top 10 (2023). Findings cross-referenced to FR/TR identifiers and to test results in `test/`. |
 | Date | 2026-05-10 |
-| Verdict | **Fit for public-internet deployment** at `pe1mew.nl`-class personal hosting. HTTPS via Let's Encrypt is provisioned; the no-index policy ships in three layers; the per-IP token bucket sheds bursts on the controller-write path; audit logging captures every silent-drop branch; security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, X-Robots-Tag) are set via `httproot/.htaccess`; direct access to `config.php` is blocked. The provider-TLS-termination residual is accepted as a trust-3 trust acceptance. The only remaining items are good-citizenship niceties (security.txt, registrar 2FA) and an optional dashboard-privacy decision. |
+| Verdict | **Deployed and verified live at `https://pe1mew.nl/hbwv/`.** All five originally-blocking items have closed: HTTPS via Let's Encrypt is provisioned, the no-index policy ships in three layers, the per-IP token bucket sheds bursts on the controller-write path, audit logging captures every silent-drop branch, and the six security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, X-Robots-Tag) fire on every PHP-served response. The provider-TLS-termination residual is accepted as a trust-3 acceptance. Remaining items are operator-side niceties (registrar 2FA, GitHub repo 2FA) and an optional dashboard-privacy decision; none are blocking. |
 
-> ⚠ This document targets a *future* deployment. The site as it stands today is on a private LAN; see [securityAssessment_LAN.md](securityAssessment_LAN.md) for that scope. Do **not** copy the test-server `httproot/` to a public host without working through § 7 of this document first.
+> ✓ This assessment now reflects the **live state** at `https://pe1mew.nl/hbwv/` as of 2026-05-10. The companion [securityAssessment_LAN.md](securityAssessment_LAN.md) remains the snapshot of the LAN-only test deployment that preceded production cutover.
 
 ## Table of contents
 
@@ -231,7 +231,7 @@ Identical to the LAN profile — XSS-safe rendering, no SQL, no shell, no `unser
 | M-3 | `php.ini` settings. | Most shared hosts default to `display_errors = Off`, `expose_php = On` (sometimes Off). Verify after deploy: `curl -I https://<host>/` — should not include `X-Powered-By`. |
 | M-4 | Dotfiles and template files deployed. | The `httproot/config_template.php` lands in the document root. PHP processes it to no output (verified). The placeholder value is a deliberate fake, no secret leaks. Acceptable. |
 | M-5 | No `Content-Security-Policy` header. | **CLOSED**. Set in two places: `httproot/.htaccess` (for hosts with permissive `AllowOverride`) **and inlined as `header()` calls at the top of every PHP entry point** (the load-bearing source on hosts where `AllowOverride` is too restrictive to honour `Header always set` directives — e.g. pe1mew). `'unsafe-inline'` is required for `index.php`'s inline `window.GH_CFG` script and `log/index.php`'s inline `<style>` block; XSS surface is independently neutralised by `textContent`-only rendering (TR-26 / FR-39). |
-| M-6 | No `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security`. | **CLOSED** via the same dual approach. PHP-side `gh_send_security_headers()` sets `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security: max-age=31536000; includeSubDomains`, plus `X-Robots-Tag: noindex, nofollow` on every PHP-served response. The `.htaccess` ships the same headers for hosts that allow it (e.g. on pe1mew the host restricts `AllowOverride` to `AuthConfig Limit`, so `.htaccess` `Header` directives are silently dropped — but the PHP-side path is unaffected). |
+| M-6 | No `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security`. | **CLOSED** via the same dual approach. Inline `header()` calls at the top of every PHP entry point set `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security: max-age=31536000; includeSubDomains`, plus `X-Robots-Tag: noindex, nofollow` on every PHP-served response. The `.htaccess` ships the same headers for hosts that allow it (on pe1mew the host restricts `AllowOverride` to `AuthConfig Limit`, so `.htaccess` `Header` directives are silently dropped — the PHP-side path is unaffected and is what was verified live). |
 | M-7 | `Server: Apache/<version>` banner. | Medium [Δ] — `ServerTokens Prod`, `ServerSignature Off` recommended. May require host cooperation if the customer cannot edit the main Apache config; sometimes possible from `.htaccess` via `Header unset X-Powered-By` and similar. |
 | M-8 | Search-engine indexing. | **CLOSED** — three layers shipped: (a) `httproot/robots.txt` with `User-agent: * / Disallow: /` so well-behaved crawlers stop at the door (effective when the project is mounted at the host root), (b) `<meta name="robots" content="noindex, nofollow">` in `index.php` and `log/index.php` (effective regardless of mount path), (c) `X-Robots-Tag: noindex, nofollow` HTTP header on `view.php` JSON responses. Misbehaving crawlers can still fetch content but Google/Bing/etc. will respect at least one of the three layers. |
 | M-9 | `httproot/log/logs/` listing. | **Closed** [Δ] on this profile — the `.htaccess`-shipped `Options -Indexes` will take effect with `AllowOverride All`. The compensating `index.php` redirect added during the LAN test still works as defence in depth. |
@@ -328,21 +328,9 @@ Walk these end to end before flipping public DNS to the new host. Each item maps
 ### 7.1 Crypto
 
 - [x] **Provision HTTPS** for the customer's domain. **Done** — Let's Encrypt is in place. (Closes C-1.)
-- [ ] **Force HTTPS** via `.htaccess` (verify the host hasn't already done this server-side):
-  ```apache
-  RewriteEngine On
-  RewriteCond %{HTTPS} !=on
-  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
-  ```
-  Probe: `curl -I http://<host>/controller/` should return 301 to `https://`.
-- [ ] **Set HSTS** via `.htaccess`:
-  ```apache
-  <IfModule mod_headers.c>
-    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
-  </IfModule>
-  ```
-  Closes C-2. After the first month, consider preload registration.
-- [ ] **Rotate the secret** to a fresh 32+ char CSPRNG value distinct from the LAN-test value. Update `httproot/config.php`, `MOCK_SECRET` in `.deploy.env`, and the controller's compiled value in lockstep. (TR-23.)
+- [x] **Force HTTPS** — host does this server-side (`http://pe1mew.nl/hbwv/` redirects to `https://`). The defensive `.htaccess` `RewriteRule` is also in place.
+- [x] **Set HSTS** — set via inline `header()` call in every PHP entry point (and via `.htaccess` for hosts that honour it). Verified on production: `Strict-Transport-Security: max-age=31536000; includeSubDomains` appears on every response. After the first month, consider preload registration.
+- [x] **Rotate the secret** — done. `httproot/config.php` holds a 32-char CSPRNG value (`qpnv…`); `MOCK_SECRET` in `.deploy.env` matches. (TR-23 closed.)
 
 ### 7.2 Auth and rate limiting
 
@@ -360,19 +348,19 @@ Walk these end to end before flipping public DNS to the new host. Each item maps
 
 - [x] **Verify `AllowOverride All`** is in force on the host. **Done** for pe1mew — `curl /hbwv/data/` returns 403, the deny-all rule fires.
 - [x] **PHP-version compatibility**. **Done** — `api.php` polyfills `array_is_list()` for hosts on PHP < 8.1, and `view.php` / `log/index.php` use traditional anonymous functions instead of arrow syntax (PHP 7.4+ compatible).
-- [ ] **Confirm `display_errors = Off`** in production. Probe: trigger a deliberate 4xx in debug mode briefly during commissioning, then revert.
+- [x] **Confirm `display_errors = Off`** in production — verified live: PHP error messages do not leak to clients; debug-mode trigger during commissioning produced clean JSON error responses, default mode produces silent 204.
 - [x] **Set security headers** via `.htaccess`. **Done** — `httproot/.htaccess` ships with `Strict-Transport-Security`, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, `X-Content-Type-Options: nosniff`, the full `Content-Security-Policy`, an `X-Robots-Tag: noindex, nofollow`, and `Header unset X-Powered-By`. Activates on hosts with `AllowOverride All`. Closes M-5 and M-6.
 - [x] **Block direct access** to `config.php` and `config_template.php`. **Done** in `httproot/.htaccess` via `<FilesMatch "^config(_template)?\.php$">Require all denied</FilesMatch>`. Defence in depth for ID-2 and ID-7.
 - [x] **Block dotfiles**. **Done** in `httproot/.htaccess` via `<FilesMatch "^\.">Require all denied</FilesMatch>`. Apache already blocks `.htaccess` itself by default; this catches accidental `.env`, `.git*`, etc.
-- [ ] **Suppress server banner**. `ServerTokens Prod` + `ServerSignature Off` in the customer's vhost or via `.htaccess` if the host allows. Closes M-7. If the host doesn't allow it, accept the residual.
+- [ ] **Suppress server banner** (`Server: Apache/2.4.38 (Debian)` still visible). Host-side directive (`ServerTokens Prod` + `ServerSignature Off`) is needed; `.htaccess` cannot do it. Customer-controllable on some hosts via control panel, on others not. Accepted as a low-impact disclosure residual.
 
 ### 7.4 Operational
 
-- [ ] **Add `.well-known/security.txt`** (RFC 9116) with an abuse-contact email. Good citizenship; closes L-5.
-- [ ] **Block the older `dev-1234…` placeholder hard** in `tools/deploy.ps1` — promote the warning into an outright refusal for production deploys. Use a CLI flag to permit it for LAN-test deploys if you still want to support that workflow.
-- [ ] **Enable 2FA on the domain registrar account.** Mitigates H-5.
-- [ ] **Enable 2FA on the GitHub account** that holds the repo. Mitigates the supply-chain row.
-- [ ] **Re-run the FD and TS test reports** end-to-end against the public deploy. Re-classify the previously-deferred rows.
+- [x] **Add `.well-known/security.txt`** (RFC 9116) — done. Available at `https://pe1mew.nl/hbwv/.well-known/security.txt`. (Closes L-5.)
+- [x] **Block the older `dev-1234…` placeholder hard** in `tools/deploy.ps1` — done. The script now refuses by default; `-AllowDevSecret` is the explicit LAN-test opt-in.
+- [ ] **Enable 2FA on the domain registrar account.** Operator-side; mitigates H-5.
+- [ ] **Enable 2FA on the GitHub account** that holds the repo. Operator-side; mitigates the supply-chain row.
+- [x] **Re-run the FD and TS test reports** end-to-end against the public deploy — done. `test/fd-requirements.md` and `test/ts-requirements.md` carry per-row LAN/production status; the four `.htaccess`-dependent rows that were ⚠ DEFERRED on LAN are ✅ PASS on production.
 
 ---
 
@@ -409,27 +397,26 @@ Consider deploying to a dedicated subdomain (e.g. `greenhouse.pe1mew.nl` or `con
 
 ## 9. Operational playbook
 
-### 9.1 Day-1 cutover
+### 9.1 Day-1 cutover (completed 2026-05-10)
 
-1. Provision HTTPS on the new host's domain.
-2. Walk the BLOCKING checklist from § 7. Tick every box.
-3. Deploy via `tools/deploy.ps1` with the new `.deploy.env` pointing at the public host.
-4. Do **not** start the controller against the new endpoint yet. Leave the mock pointed at the LAN test for one more day.
-5. Verify with `curl` from a different network: `view.php` returns expected headers (HSTS, CSP), no banner; `api.php` POST without secret returns silent 204; `api.php` POST with the new secret writes `status.json`.
-6. Update the controller-side base URL and secret. Reflash if necessary.
-7. Switch over.
+1. ✅ HTTPS provisioned via Let's Encrypt at `https://pe1mew.nl/hbwv/`.
+2. ✅ § 7 hardening checklist walked end-to-end. All blocking items closed.
+3. ✅ Deployed via SCP upload (the host doesn't expose `tools/deploy.ps1`-style SSH; uploads went through the operator's FTP client).
+4. ✅ Mock retargeted at the production base URL with the production secret.
+5. ✅ Verified via `curl`: every PHP entry point carries the six security headers; wrong-secret POST returns silent 204; valid push lands in `data/status.json`; dashboard populates within one polling cycle.
+6. ⏳ Real ESP32 cutover: deferred to a separate session against `design/apiSpecification.md`.
 
-### 9.2 Incident drills (run once, before going live)
+### 9.2 Incident drills (run once during commissioning)
 
-- **Lost secret simulation.** Deliberately push with the wrong secret 100 times in a minute from the operator's workstation. Verify: silent-drop log fires for each one; rate limiter starts shedding after the bucket empties; dashboard remains green (legitimate pushes from the controller are still landing).
-- **Dashboard defacement attempt.** Deliberately push with the right secret a payload containing `<script>alert(1)</script>` in a string field. Verify: dashboard renders the literal text; nothing executes. (Repeat of FR-39 against the production deploy.)
-- **Disk-fill attempt.** With the right secret, upload 100 max-size log files in rapid succession. Verify: each upload triggers retention sweep; total disk usage stays within retention bound; rate limiter eventually sheds.
+- ✅ **Lost secret simulation.** 70-burst wrong-secret POST verified the rate limiter caps throughput at 60 (the burst budget) and silently rejects the rest. Audit log line written for every drop.
+- ✅ **Dashboard defacement attempt.** Pushed `<img src=x onerror=alert(1)>` and `<script>alert(2)</script>` into payload string fields. Dashboard renders both as literal text; nothing executes. (TR-26 / FR-39.)
+- ⏸ **Disk-fill attempt.** Not exercised against production. Locally bounded by 5 MiB cap × 90-day retention; ad-hoc verification recommended after the real ESP32 starts daily uploads.
 
 ### 9.3 Routine checks
 
-- **Monthly**: `grep -c 'silent-drop' /var/log/.../error.log | sort | uniq -c` to spot abuse patterns. Compare baseline month over month.
-- **Quarterly**: rotate the shared secret. Document procedure: server first, controller within an hour. Brief outage tolerated.
-- **Annually**: re-run the BLOCKING and DEFENCE-IN-DEPTH checklists. Patch anything that drifted.
+- **Monthly**: `grep '\[hbwv api\] drop' /home/<user>/logs/<domain>/error.log | awk '{print $7}' | sort | uniq -c` (or your host's equivalent log path) to spot abuse patterns. Compare month over month for spike anomalies.
+- **Quarterly**: rotate the shared secret. Procedure: edit `httproot/config.php` server-side first (re-upload), update `MOCK_SECRET` in `.deploy.env` and the controller's compiled value within an hour. Brief outage tolerated; pushes silently drop until both sides match.
+- **Annually**: re-run the § 7 hardening checklist and the FD/TS test reports. Patch anything that drifted.
 
 ---
 
