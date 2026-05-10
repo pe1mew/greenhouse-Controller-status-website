@@ -31,27 +31,33 @@ header('X-Robots-Tag: noindex, nofollow');
 <div class="tiles">
 
   <section id="tile-freshness" class="tile tile-freshness">
-    <h3 class="tile-title">Freshness</h3>
-    <div class="fresh-track"><div id="fresh-fill" class="fresh-fill"></div></div>
+    <h3 class="tile-title" title="How recently the controller reported its status">Freshness</h3>
+    <div class="fresh-track" title="Bar shrinks as the last update gets older. Green = fresh, yellow = late, red = stale (older than 4× the report interval).">
+      <div id="fresh-fill" class="fresh-fill"></div>
+    </div>
     <div class="fresh-row">
-      <span id="fresh-caption" class="muted">No data yet</span>
-      <span id="fresh-offline" class="badge offline" hidden>OFFLINE</span>
+      <span id="fresh-caption" class="muted" title="Time of the last update, configured update interval, and current data age">No data yet</span>
+      <span id="fresh-offline" class="badge offline" hidden title="Controller has not reported in more than 4× the expected interval">OFFLINE</span>
     </div>
   </section>
 
   <section id="tile-climate" class="tile" hidden>
-    <h3 class="tile-title">Climate</h3>
-    <p class="big" id="cl-temp"><strong></strong> °C</p>
-    <p class="big" id="cl-rh"><strong></strong> %</p>
+    <h3 class="tile-title" title="Air temperature and humidity inside the greenhouse">Climate</h3>
+    <p class="big" id="cl-temp" title="Current air temperature in degrees Celsius"><strong></strong> °C</p>
+    <p class="big" id="cl-rh"   title="Current relative humidity (percentage of maximum at this temperature)"><strong></strong> %</p>
   </section>
 
   <section id="tile-wind" class="tile" hidden>
-    <h3 class="tile-title">Wind</h3>
-    <p class="big" id="wd-main"><strong></strong> m/s <strong></strong>° <strong></strong></p>
+    <h3 class="tile-title" title="Wind conditions reported by the controller's wind sensor">Wind</h3>
+    <p class="big" id="wd-main">
+      <strong title="Wind speed in metres per second"></strong> m/s
+      <strong title="Wind direction in degrees (0° = North, 90° = East, 180° = South, 270° = West)"></strong>°
+      <strong title="Compass cardinal direction (N / NE / E / SE / S / SW / W / NW)"></strong>
+    </p>
   </section>
 
   <section id="tile-windows" class="tile tile-windows" hidden>
-    <h3 class="tile-title">Windows</h3>
+    <h3 class="tile-title" title="Position of each greenhouse vent / window. Hover a window for its full state.">Windows</h3>
     <svg viewBox="0 0 200 140" role="img" aria-label="Window status" class="windows-svg">
       <rect x="2" y="2" width="196" height="136" rx="4" fill="none" stroke="var(--fg)" stroke-width="1"/>
       <text x="100" y="10"  text-anchor="middle" dominant-baseline="middle" font-size="6" fill="var(--muted)">N</text>
@@ -78,27 +84,34 @@ header('X-Robots-Tag: noindex, nofollow');
   </section>
 
   <section id="tile-mode" class="tile" hidden>
-    <h3 class="tile-title">Mode</h3>
+    <h3 class="tile-title" title="Current operating mode of the controller">Mode</h3>
     <span id="md-current" class="pill"></span>
-    <div id="md-flags" class="flags"></div>
+    <div id="md-flags" class="flags" title="Active status flags reported by the controller"></div>
   </section>
 
   <section id="tile-sun" class="tile" hidden>
-    <h3 class="tile-title">Sun</h3>
-    <p class="big"><span id="sun-icon">☀</span></p>
-    <p class="muted">↑ <span id="sun-rise">—</span></p>
-    <p class="muted">↓ <span id="sun-set">—</span></p>
+    <h3 class="tile-title" title="Daylight status and today's sunrise / sunset times">Sun</h3>
+    <p class="big"><span id="sun-icon" title="Day / night indicator">☀</span></p>
+    <p class="muted" title="Sunrise time today (HH:MM, local time)">↑ <span id="sun-rise">—</span></p>
+    <p class="muted" title="Sunset time today (HH:MM, local time)">↓ <span id="sun-set">—</span></p>
   </section>
 
   <section id="tile-system" class="tile" hidden>
-    <h3 class="tile-title">System</h3>
-    <p class="muted"><span id="sys-ip">—</span> · <span id="sys-rssi">—</span> dBm · <span id="sys-ntp">—</span></p>
+    <h3 class="tile-title" title="Controller connectivity and runtime status">System</h3>
+
+    <div id="sys-rssi-row" class="sys-row" title="WiFi signal strength">
+      <span class="sys-label">WiFi</span>
+      <div class="sys-rssi-track"><div id="sys-rssi-fill" class="sys-rssi-fill"></div></div>
+    </div>
+
+    <div class="sys-row"><span id="sys-ntp" class="muted" title="Time synchronization status (NTP / RTC)">—</span></div>
+    <div class="sys-row" title="Time since the controller last booted"><span class="muted">Uptime <span id="sys-uptime">—</span></span></div>
   </section>
 
 </div>
 
 <footer>
-  <span>Greenhouse Controller &nbsp;&bull;&nbsp; v<span id="sys-fw">—</span></span>
+  <span title="Controller firmware version">Greenhouse Controller &nbsp;&bull;&nbsp; v<span id="sys-fw">—</span></span>
   <a href="https://github.com/pe1mew/-greenhouse-Controller-status-website"
      target="_blank" rel="noopener noreferrer">GitHub &nearr;</a>
 </footer>

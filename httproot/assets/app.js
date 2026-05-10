@@ -82,11 +82,28 @@ const FLAG_CLASS = {
   sensor_fault_wind: 'flag-alarm',
 };
 
+const FLAG_DESC = {
+  wind_override:     'Wind speed exceeded the safety threshold; windows forced closed',
+  calibrating:       'Window position calibration in progress',
+  ota_in_progress:   'Firmware over-the-air update in progress',
+  motor_alarm:       'A window motor reported a fault',
+  sensor_fault_temp: 'Temperature sensor is not reporting valid data',
+  sensor_fault_rh:   'Humidity sensor is not reporting valid data',
+  sensor_fault_wind: 'Wind sensor is not reporting valid data',
+};
+
 const MODE_CLASS = {
   AUTOMATIC:     'mode-ok',
   WIND_OVERRIDE: 'mode-warn',
   WINDOW_CAL:    'mode-warn',
   MOTOR_ALARM:   'mode-alarm',
+};
+
+const MODE_DESC = {
+  AUTOMATIC:     'Normal automatic operation — windows controlled by climate rules',
+  WIND_OVERRIDE: 'High wind detected — windows forced closed for safety',
+  WINDOW_CAL:    'Calibrating window positions — automatic control suspended',
+  MOTOR_ALARM:   'Motor fault detected — manual intervention required',
 };
 
 function renderMode(m) {
@@ -97,6 +114,7 @@ function renderMode(m) {
   const pill = $('md-current');
   pill.textContent = m.current || '';
   pill.className = 'pill ' + (m.current && MODE_CLASS[m.current] ? MODE_CLASS[m.current] : 'mode-mute');
+  pill.title = MODE_DESC[m.current] || 'Operating mode reported by the controller';
 
   const flagsEl = $('md-flags');
   clearChildren(flagsEl);
@@ -105,6 +123,7 @@ function renderMode(m) {
       const span = document.createElement('span');
       span.className = 'badge ' + (FLAG_CLASS[f] || 'flag-mute');
       span.textContent = f;
+      span.title = FLAG_DESC[f] || 'Status flag from the controller';
       flagsEl.appendChild(span);
     }
   }
@@ -120,19 +139,68 @@ function renderSun(s) {
   const tile = $('tile-sun');
   if (!s) { tile.hidden = true; return; }
   tile.hidden = false;
-  setText('sun-icon', s.is_daytime ? '☀' : '☾');
+  const icon = $('sun-icon');
+  icon.textContent = s.is_daytime ? '☀' : '☾';
+  icon.title       = s.is_daytime ? 'Currently daytime' : 'Currently night-time';
   setText('sun-rise', 'sunrise_min' in s ? fmtMin(s.sunrise_min) : '—');
   setText('sun-set',  'sunset_min'  in s ? fmtMin(s.sunset_min)  : '—');
+}
+
+function fmtUptime(sec) {
+  if (typeof sec !== 'number' || !isFinite(sec) || sec < 0) return '—';
+  sec = Math.floor(sec);
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
+}
+
+function rssiToPct(dbm) {
+  return Math.max(0, Math.min(100, ((dbm + 90) / 60) * 100));
+}
+
+function rssiQuality(dbm) {
+  if (dbm >= -54) return 'good';
+  if (dbm >= -72) return 'fair';
+  return 'weak';
 }
 
 function renderSystem(s) {
   const tile = $('tile-system');
   if (!s) { tile.hidden = true; return; }
   tile.hidden = false;
-  setText('sys-ip',   s.wifi_ip || '—');
-  setText('sys-rssi', 'wifi_rssi_dbm' in s ? s.wifi_rssi_dbm : '—');
-  setText('sys-ntp',  s.ntp_synced ? 'NTP ok' : 'NTP pending');
-  setText('sys-fw',   s.fw_ver || '—');
+
+  const fill = $('sys-rssi-fill');
+  const row  = $('sys-rssi-row');
+  if (typeof s.wifi_rssi_dbm === 'number' && isFinite(s.wifi_rssi_dbm)) {
+    const pct = rssiToPct(s.wifi_rssi_dbm);
+    fill.style.width = pct + '%';
+    fill.style.background =
+      pct >= 60 ? 'var(--green)'  :
+      pct >= 30 ? 'var(--yellow)' :
+                  'var(--red)';
+    row.title = 'WiFi signal strength: ' + s.wifi_rssi_dbm + ' dBm (' + rssiQuality(s.wifi_rssi_dbm) + ')';
+  } else {
+    fill.style.width = '0%';
+    fill.style.background = 'var(--red)';
+    row.title = 'WiFi signal strength: no data';
+  }
+
+  const ntpEl = $('sys-ntp');
+  if (s.ntp_synced) {
+    ntpEl.textContent = 'NTP ok';
+    ntpEl.title       = 'Controller clock is synchronized via NTP';
+  } else {
+    ntpEl.textContent = 'NTP pending';
+    ntpEl.title       = 'Controller clock is not yet synchronized via NTP';
+  }
+
+  setText('sys-uptime', 'uptime_s' in s ? fmtUptime(s.uptime_s) : '—');
+  setText('sys-fw',     s.fw_ver || '—');
 }
 
 const W_IDS = ['M1', 'M2', 'M3'];

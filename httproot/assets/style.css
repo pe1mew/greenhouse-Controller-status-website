@@ -91,6 +91,34 @@ body {
   gap: 8px;
 }
 
+.sys-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.sys-row:first-of-type { margin-top: 0; }
+.sys-label {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 44px;
+}
+.sys-rssi-track {
+  flex: 1;
+  height: 10px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sys-rssi-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--red);
+  border-radius: 4px;
+  transition: width 200ms linear, background-color 200ms linear;
+}
+
 .badge {
   display: inline-block;
   padding: 2px 8px;
