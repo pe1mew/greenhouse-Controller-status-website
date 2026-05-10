@@ -23,7 +23,10 @@
 
 [CmdletBinding()]
 param(
-    [switch] $DryRun
+    [switch] $DryRun,
+    # Permits the legacy `dev-1234…` placeholder secret. Use only for LAN-test
+    # deployments. The script refuses to ship that placeholder by default.
+    [switch] $AllowDevSecret
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,7 +60,17 @@ if ($cfg_text -match "REPLACE_ME_BEFORE_DEPLOY") {
     throw "httproot/config.php still contains the template placeholder REPLACE_ME_BEFORE_DEPLOY. Edit GH_SECRET_TOKEN first."
 }
 if ($cfg_text -match "dev-1234567890abcdef-please-rotate-in-prod") {
-    Write-Host "WARNING: httproot/config.php still uses the original dev secret. OK on a LAN test server, but rotate before exposing the site beyond it." -ForegroundColor Yellow
+    if (-not $AllowDevSecret) {
+        throw @"
+httproot/config.php still uses the legacy `dev-1234…` placeholder secret.
+This is unsafe for any non-LAN deployment.
+
+  - To rotate: edit httproot\config.php and set GH_SECRET_TOKEN to a fresh
+    random value (>= 16 chars). Update MOCK_SECRET in .deploy.env to match.
+  - To deploy anyway (LAN test only), re-run with  -AllowDevSecret
+"@
+    }
+    Write-Host "WARNING: deploying with the legacy `dev-1234…` placeholder secret (LAN-test override active)." -ForegroundColor Yellow
 }
 
 # ---- parse .deploy.env (KEY=VALUE, # comments) ----

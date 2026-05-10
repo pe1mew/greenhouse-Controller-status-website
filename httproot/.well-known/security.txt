@@ -1,0 +1,4 @@
+Contact: mailto:pe1mew@gmail.com
+Expires: 2027-05-10T00:00:00Z
+Preferred-Languages: en, nl
+Canonical: https://pe1mew.nl/hbwv/.well-known/security.txt

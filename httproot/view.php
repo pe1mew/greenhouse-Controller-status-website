@@ -1,5 +1,12 @@
 <?php
 require __DIR__ . '/config.php';
+header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+header('X-Frame-Options: DENY');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: same-origin');
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
+header('X-Robots-Tag: noindex, nofollow');
+@header_remove('X-Powered-By');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     if (GH_DEBUG_RESPONSES) {
@@ -14,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 header('Cache-Control: no-store');
 header('Content-Type: application/json; charset=utf-8');
+header('X-Robots-Tag: noindex, nofollow');
 
 $action = $_GET['action'] ?? 'status';
 
@@ -46,7 +54,7 @@ if ($action === 'logs') {
                 ];
             }
         }
-        usort($out, fn($a, $b) => $b['mtime'] - $a['mtime']);
+        usort($out, function ($a, $b) { return $b['mtime'] - $a['mtime']; });
     }
     echo json_encode($out);
     exit;

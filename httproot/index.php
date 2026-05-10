@@ -1,9 +1,19 @@
-<?php require __DIR__ . '/config.php'; ?>
+<?php
+require __DIR__ . '/config.php';
+header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+header('X-Frame-Options: DENY');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: same-origin');
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
+header('X-Robots-Tag: noindex, nofollow');
+@header_remove('X-Powered-By');
+?>
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>Greenhouse status</title>
 <link rel="stylesheet" href="assets/style.css?v=<?= @filemtime(__DIR__ . '/assets/style.css') ?: time() ?>">
 <script>
@@ -88,7 +98,7 @@
 </div>
 
 <footer>
-  <span>Greenhouse Controller Status &nbsp;&bull;&nbsp; fw <span id="sys-fw">—</span></span>
+  <span>Greenhouse Controller &nbsp;&bull;&nbsp; v<span id="sys-fw">—</span></span>
   <a href="https://github.com/pe1mew/-greenhouse-Controller-status-website"
      target="_blank" rel="noopener noreferrer">GitHub &nearr;</a>
 </footer>

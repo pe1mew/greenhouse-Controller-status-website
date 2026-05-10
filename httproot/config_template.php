@@ -42,6 +42,13 @@ define('GH_LOG_ALLOWED_EXT',    ['log', 'txt']);
 define('GH_POLL_INTERVAL_MS',   5000);
 define('GH_DEFAULT_INTERVAL_S', 30);
 
+// Per-IP token-bucket rate limit on api.php (POST endpoints only).
+// BUCKET = burst capacity, REFILL_PER_SEC = sustained rate.
+// 60 / 0.2 ≈ 12 req/min sustained, 60 burst — comfortably above the legit
+// controller's push rate, well below what an attacker would need to flood.
+define('GH_RATE_LIMIT_BUCKET',         60);
+define('GH_RATE_LIMIT_REFILL_PER_SEC', 0.2);
+
 define('GH_WINDOW_NAMES', [
     'M1' => 'South roof',
     'M2' => 'North roof',

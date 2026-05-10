@@ -493,41 +493,41 @@ Inline SVG, `viewBox="0 0 200 140"`, embedded in `index.php`. North at top, with
 
 ```html
 <svg viewBox="0 0 200 140" role="img" aria-label="Window status" class="windows-svg">
-  <rect x="10" y="10" width="180" height="120" rx="4"
+  <rect x="2" y="2" width="196" height="136" rx="4"
         fill="none" stroke="var(--fg)" stroke-width="1"/>
 
-  <text x="100" y="17"  text-anchor="middle" dominant-baseline="middle" font-size="6" fill="var(--muted)">N</text>
-  <text x="100" y="123" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="var(--muted)">S</text>
+  <text x="100" y="10"  text-anchor="middle" dominant-baseline="middle" font-size="6" fill="var(--muted)">N</text>
+  <text x="100" y="130" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="var(--muted)">S</text>
 
   <g>
     <title id="title-m3">M3 North wall: UNKNOWN</title>
-    <rect id="rect-m3" x="20" y="24" width="160" height="30" rx="4" fill="var(--grey-muted)"/>
-    <text id="lbl-m3"  x="100" y="39" text-anchor="middle" dominant-baseline="middle"
-          font-size="7" font-weight="bold" fill="var(--fg)">M3 North wall UNKNOWN</text>
+    <rect id="rect-m3" x="14" y="18" width="172" height="34" rx="4" fill="var(--grey-muted)"/>
+    <text id="lbl-m3"  x="100" y="35" text-anchor="middle" dominant-baseline="middle"
+          font-size="10" font-weight="bold" fill="var(--fg)">M3 North wall UNKNOWN</text>
   </g>
 
   <g>
     <title id="title-m2">M2 North roof: UNKNOWN</title>
-    <rect id="rect-m2" x="20" y="68" width="160" height="18" rx="3" fill="var(--grey-muted)"/>
+    <rect id="rect-m2" x="14" y="66" width="172" height="22" rx="3" fill="var(--grey-muted)"/>
     <text id="lbl-m2"  x="100" y="77" text-anchor="middle" dominant-baseline="middle"
-          font-size="7" font-weight="bold" fill="var(--fg)">M2 North roof UNKNOWN</text>
+          font-size="10" font-weight="bold" fill="var(--fg)">M2 North roof UNKNOWN</text>
   </g>
 
   <g>
     <title id="title-m1">M1 South roof: UNKNOWN</title>
-    <rect id="rect-m1" x="20" y="98" width="160" height="18" rx="3" fill="var(--grey-muted)"/>
-    <text id="lbl-m1"  x="100" y="107" text-anchor="middle" dominant-baseline="middle"
-          font-size="7" font-weight="bold" fill="var(--fg)">M1 South roof UNKNOWN</text>
+    <rect id="rect-m1" x="14" y="100" width="172" height="22" rx="3" fill="var(--grey-muted)"/>
+    <text id="lbl-m1"  x="100" y="111" text-anchor="middle" dominant-baseline="middle"
+          font-size="10" font-weight="bold" fill="var(--fg)">M1 South roof UNKNOWN</text>
   </g>
 </svg>
 ```
 
-All three bars share the same 160-unit width; only their heights differ.
-M3 is 30 tall (`y=24..54`), M2 and M1 are each 18 tall (`y=68..86` and
-`y=98..116` respectively). The vertical gap from the top border to M3
-is 14, the gap M3→M2 is also 14, and the gap M1→bottom is 14, giving a
-balanced layout. Label text is `font-size="7"` and `font-weight="bold"`
-so it visually matches the OFFLINE pill.
+All three bars share the same 172-unit width; only their heights differ.
+M3 is 34 tall (`y=18..52`), M2 and M1 are each 22 tall (`y=66..88` and
+`y=100..122` respectively). The greenhouse outer rect uses 2-unit margins
+to fill the SVG viewBox. Label text is `font-size="10"` and
+`font-weight="bold"` for legibility on a phone (matches the OFFLINE pill
+visual weight while sitting comfortably inside the bars).
 
 JS update:
 
@@ -799,7 +799,7 @@ Each requirement is an implementation-level check that the spec is followed. IDs
 | ID | Requirement | Implements | Verification |
 |---|---|---|---|
 | TR-35 | The windows SVG uses `viewBox="0 0 200 140"`. | FR-27 | Inspect SVG markup. |
-| TR-36 | M1, M2, M3 rects all have `width="160"`. M3 has `height="30"`; M1 and M2 each have `height="18"`. | FR-29 | Inspect SVG markup. |
+| TR-36 | M1, M2, M3 rects all have `width="172"`. M3 has `height="34"`; M1 and M2 each have `height="22"`. | FR-29 | Inspect SVG markup. |
 | TR-37 | The compass labels `N` and `S` appear at the top and bottom of the SVG respectively. | FR-27 | Inspect SVG markup. |
 | TR-38 | Each window bar's `<title>` element carries the full unabbreviated state name. | FR-34 | Send `"M1":"MOVING_OPEN"`; the `<title>` text is `M1 South roof: MOVING_OPEN`, not `MOV OPEN`. |
 | TR-39 | The state-to-fill mapping in JS produces `var(--blue-light)` for OPEN, `var(--yellow)` for MOVING_*, `var(--green-dark)` for CLOSED, `var(--grey-muted)` for UNKNOWN/missing/unrecognised. | FR-30, FR-31, FR-32, FR-33 | Code review of the `COLOR` map and `renderWindows()` fallback. |

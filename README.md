@@ -1,105 +1,133 @@
 # Greenhouse Controller Status Website
 
-A mobile-first, passive web dashboard for one ESP32-S3 [Greenhouse Controller](https://github.com/pe1mew/greenhouse-Controller). The controller pushes its current status (sensors, vent positions, mode) and uploads its event log over an authenticated HTTP REST API. The website stores the latest payload, renders a tiled dashboard, and lists log files for download. The browser is read-only with respect to the greenhouse — no commands flow back.
+A mobile-first, passive web dashboard for one ESP32-S3 [Greenhouse Controller](https://github.com/pe1mew/greenhouse-Controller). The controller pushes its current status (sensors, vent positions, mode) and uploads its event log over an authenticated HTTP REST API. The website stores the latest payload, renders a tiled dashboard, and offers logs for download from a separate page. The browser is read-only with respect to the greenhouse — no commands flow back.
 
-> **Status — design draft.** Version 0.2 (2026-05-10). The functional design and technical specification are complete and under review; no PHP code has been written yet. See [design/](design/) for the full specifications and [changelog.md](changelog.md) for the latest state.
+> **Status — implemented and test-deployed.** Version 0.3 (2026-05-10).
+> Phases 0–8 of the [implementation plan](design/implementation-plan.md) are
+> done; the dashboard is live on a LAN test server with a Flask mock
+> controller driving it. Phase 10 security pass complete. AllowOverride
+> hardening and HTTPS are deferred to non-test deployment.
 
 ## Features
 
-Drawn from the [functional design](design/functional-design.md):
-
 - **One-controller dashboard** — exactly one ESP32-S3 greenhouse controller is assumed; latest status only, no historical charting.
-- **Two physically separate API surfaces** — a secret-gated controller-ingest endpoint for writes, and a public read-only endpoint that the browser polls. Hardening policies on the read path do not affect the controller-write path.
-- **Silent-drop authentication** — the ingest endpoint acknowledges malformed or unauthenticated requests with an empty success-shaped response, so internet-wide probing learns nothing. A debug flag flips this behaviour for commissioning.
+- **Two physically separate API surfaces** — a secret-gated controller-ingest endpoint for writes (`api.php`), and a public read-only endpoint that the browser polls (`view.php`). Hardening policies on the read path do not affect the controller-write path.
+- **Silent-drop authentication** — the ingest endpoint acknowledges malformed or unauthenticated requests with an empty success-shaped response (HTTP 204), so internet-wide probing learns nothing. A debug flag flips this behaviour for commissioning.
 - **Presence-driven tiles** — the controller's payload directly controls what is on screen. A missing top-level object hides its tile; a missing key hides its line. There are no "N/A" placeholders.
-- **Always-on freshness tile** — a horizontal countdown bar that drains over four times the controller's configured update interval. Green ≤ 2× interval, amber ≤ 4× interval, red and "OFFLINE" beyond. When red, the rest of the dashboard dims; the freshness tile stays bright. Updates at least once per second between polls, anchored against server-reported age (no dependency on browser↔server clock sync).
-- **Plan-view windows tile** — the greenhouse seen from above with North at the top. Three coloured bars: M3 (north wall, large), M2 (north roof, small), M1 (south roof, small). Window display names are configured website-side; renaming a vent does not require a controller change.
+- **Always-on freshness tile** — a horizontal countdown bar that drains over four times the controller's configured `update_interval_s`. Green ≤ 2× interval, amber ≤ 4× interval, red and "OFFLINE" beyond. When red, the rest of the dashboard dims; the freshness tile stays bright. Updates at least once per second between polls, anchored against server-reported age (no dependency on browser↔server clock sync).
+- **Plan-view windows tile** — the greenhouse seen from above with North at the top. Three coloured bars (M1, M2, M3) at the same width, M3 visibly taller. Window display names are configured website-side; renaming a vent does not require a controller change.
+- **Mode pill coloured by severity** — `MOTOR_ALARM` red, `WIND_OVERRIDE`/`WINDOW_CAL` amber, `AUTOMATIC` blue, unknown muted.
+- **Wind direction with cardinal label** — the dashboard derives N/NE/E/…/NW from `direction_deg` automatically.
 - **Mobile-first** — designed for a 360 × 800 portrait phone. Larger viewports flow into more columns automatically. Always dark themed.
-- **Authenticated log uploads** — controller-pushed logs are stored under a server-generated `YYYY-MM-DD_HHMMSS.log` name and offered for download from a directory hardened to a strict filename whitelist. Logs older than the retention window are pruned silently on each successful upload.
+- **Authenticated log uploads** — controller-pushed logs are stored under a server-generated `YYYY-MM-DD_HHMMSS.log` name and offered for download from a **separate, unlinked** page at `/log/`. Logs older than the retention window are pruned silently on each successful upload.
 - **Resilience** — three consecutive failed read fetches surface a "Connection lost" banner; a successful fetch clears it.
 
 ## Tech stack
 
-- **Backend**: PHP (no framework). Two thin entrypoints — `api.php` for the controller, `view.php` for the browser.
-- **Frontend**: server-rendered HTML shell (`index.php`) plus vanilla JavaScript and CSS. No build step.
-- **Storage**: a single JSON file for the latest status (atomic `.tmp` + `rename()`); a flat directory of `.log` files for downloads. No database.
-- **Hosting**: any standard PHP-enabled Apache host (LAMP/LEMP). HTTPS required in production.
+- **Backend**: PHP 8.1+ (no framework). Two thin entrypoints — `api.php` for the controller, `view.php` for the browser, plus `index.php` (dashboard) and `log/index.php` (logs page).
+- **Frontend**: server-rendered HTML shell + vanilla JavaScript and CSS. No build step. Cache-busting via `?v=<filemtime>` on every asset.
+- **Storage**: a single JSON file for the latest status (atomic `.tmp` + `rename()`); a flat directory of `.log` files. No database.
+- **Hosting**: any standard PHP-enabled Apache host (LAMP/LEMP). HTTPS strongly recommended in production.
+- **Mock controller**: Python 3.10+ Flask app for development without the ESP32 in the loop.
+- **Deploy**: Windows PowerShell over OpenSSH `scp` — uses `~/.ssh/config` for host/key resolution, no credentials in the repo.
 
 ## Repository structure
 
-Today (design phase, no code yet):
-
 ```
 greenhouse-Controller-status-website/
+├── httproot/                       ← Apache document root points here
+│   ├── index.php                   ← Dashboard shell
+│   ├── api.php                     ← Controller ingest (POST writes)
+│   ├── view.php                    ← Browser read feed (GET reads)
+│   ├── config_template.php         ← Tracked template
+│   ├── config.php                  ← Real config — gitignored
+│   ├── assets/{style.css, app.js}
+│   ├── data/                       ← Latest status.json + .htaccess
+│   ├── log/
+│   │   ├── index.php               ← Separate logs page
+│   │   └── logs/                   ← Uploaded log files (.htaccess-hardened)
+│   └── logs/                       ← 301-redirect to /log/ (back-compat)
+├── mock/                           ← Flask mock controller (dev only)
+├── tools/
+│   ├── deploy.ps1                  ← SCP-based deploy script
+│   └── README.md                   ← Deploy / first-time setup
 ├── design/
-│   ├── functional-design.md     ← What the system does (v0.2 draft)
-│   └── technical-spec.md        ← How it is built (v0.2 draft)
+│   ├── functional-design.md        ← What the system does (FR-01..FR-45)
+│   ├── technical-spec.md           ← How it is built (TR-01..TR-42)
+│   ├── implementation-plan.md      ← Phase-by-phase plan + verification sign-off
+│   └── apiSpecification.md         ← Controller-side contract
 ├── documentation/
-│   ├── webguiExample/           ← Reference web UI (dark-theme variables, .card styling, live-fetch progress bar)
-│   └── phpAPIExample/           ← Reference PHP auth + cleanup pattern
-├── README.md
-├── LICENSE
-├── license.md
-├── changelog.md
-├── contributing.md
-└── code_of_conduct.md
-```
-
-Planned per [technical-spec.md § 1](design/technical-spec.md#1-directory-layout):
-
-```
-├── index.php                    ← Public HTML shell
-├── api.php                      ← Controller ingest (POST writes, secret-gated)
-├── view.php                     ← Browser read feed (GET reads, public)
-├── config.php                   ← Constants only
-├── assets/
-│   ├── style.css
-│   └── app.js
-├── data/
-│   ├── .htaccess                ← Require all denied
-│   └── status.json              ← Latest payload + server-added received_at
-└── log/
-    └── logs/
-        ├── .htaccess            ← Filename whitelist, no listing
-        └── YYYY-MM-DD_HHMMSS.log
+│   ├── webguiExample/              ← Reference web UI (theme + progress bar)
+│   └── phpAPIExample/              ← Reference PHP auth pattern
+├── .deploy.env                     ← Deploy host config — gitignored
+├── .deploy.env.example             ← Template
+├── .gitignore
+└── README.md, LICENSE, …
 ```
 
 ## Getting started
 
-There is no runnable code yet. To follow along with the design or contribute to it:
+### 1. Clone and configure
 
+```powershell
+git clone https://github.com/pe1mew/-greenhouse-Controller-status-website.git
+cd -greenhouse-Controller-status-website
+
+# 1a. Create the active config from the template, generate a real secret:
+Copy-Item httproot\config_template.php httproot\config.php
+$tok = -join ((48..57+65..90+97..122) | Get-Random -Count 32 | %{[char]$_})
+(Get-Content httproot\config.php) -replace 'REPLACE_ME_BEFORE_DEPLOY', $tok | Set-Content httproot\config.php
+
+# 1b. Copy the deploy env template and edit:
+Copy-Item .deploy.env.example .deploy.env
+# Then edit .deploy.env to point at your deploy host alias and document root.
+# Set MOCK_SECRET to the same value you put in config.php.
 ```
-git clone https://github.com/pe1mew/greenhouse-Controller-status-website.git
-cd greenhouse-Controller-status-website
+
+Both `httproot/config.php` and `.deploy.env` are gitignored — the secret never enters the repo.
+
+### 2. Deploy
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\deploy.ps1
 ```
 
-Then read:
+The script does an SCP upload to the host alias in `.deploy.env`, normalises file modes (`0755` on dirs, `0644` on files, `2770` on `data/` and `log/logs/` so Apache's `www-data` can write), and refuses to deploy if `config.php` is missing or still has the placeholder secret.
 
-1. [design/functional-design.md](design/functional-design.md) — what the system does, with 45 testable functional requirements.
-2. [design/technical-spec.md](design/technical-spec.md) — how it will be built, with 42 testable implementation requirements traced back to the functional ones.
-3. [documentation/webguiExample/webGuiExample.md](documentation/webguiExample/webGuiExample.md) — pointer to the reference web UI imported from the [Modbus sensor emulator](https://github.com/pe1mew/greenhouse-Controller-Modbus-sensor-emulator).
-4. [documentation/phpAPIExample/api.php](documentation/phpAPIExample/api.php) — the reference PHP authentication and cleanup pattern.
+See [tools/README.md](tools/README.md) for full deploy details and known limitations on hosts where `AllowOverride None` is set.
 
-### Future deployment recipe
+### 3. Drive the dashboard with the Flask mock
 
-Once `api.php`, `view.php`, `index.php`, `config.php`, and the `assets/` directory exist, deployment will be:
+Without an ESP32 in the loop, run the mock to push status:
 
-1. Copy the project to the document root of a PHP-enabled Apache host.
-2. Set `GH_SECRET_TOKEN` in `config.php` to a long random string. Set the same value on the controller side.
-3. Ensure `data/` is writable by the web-server user.
-4. Ensure `log/logs/` is writable by the web-server user.
-5. Verify HTTPS is enforced (the shared secret is plaintext-equivalent on the wire).
-6. Open the dashboard at `https://your-host/`.
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r mock/requirements.txt
+python -m flask --app mock.app run --port 5000
+```
+
+The mock auto-loads target URL and secret from `.deploy.env`, pushes every 10 s by default, and offers a control panel at <http://127.0.0.1:5000/> for triggering scenarios (toggle top-level objects, change window states, send malformed JSON, send wrong secret, upload sample log).
+
+See [mock/README.md](mock/README.md) for scenarios that map back to specific FR/TR identifiers in the design.
+
+### 4. Real ESP32 integration
+
+When you're ready to swap the mock for the real controller, see [design/apiSpecification.md](design/apiSpecification.md) — that document is self-contained and describes every byte the controller has to send.
 
 ## Documentation
 
 | Document | Purpose |
 |---|---|
-| [design/functional-design.md](design/functional-design.md) | Externally-observable behaviour, API contract, tile catalogue, freshness tile spec, windows tile spec, security policy, FR-01 … FR-45. |
-| [design/technical-spec.md](design/technical-spec.md) | Directory layout, `config.php`, `api.php`, `view.php`, storage model, frontend wiring, Apache hardening, verification plan, TR-01 … TR-42. |
-| [documentation/webguiExample/](documentation/webguiExample/) | Reference HTML/CSS/JS for theme variables and the live-fetch progress bar pattern reused by the freshness tile. |
+| [design/functional-design.md](design/functional-design.md) | What the system does. Tile catalogue, freshness/windows tile spec, security policy, FR-01 through FR-45. Stakeholder-readable. |
+| [design/technical-spec.md](design/technical-spec.md) | How it is built. Directory layout, endpoint code paths, storage model, frontend wiring, Apache hardening, TR-01 through TR-42. |
+| [design/implementation-plan.md](design/implementation-plan.md) | Twelve-phase plan with effort estimates, risks, and a verification sign-off snapshot from the test-server walk-through. |
+| [design/apiSpecification.md](design/apiSpecification.md) | The contract for the firmware engineer — endpoint signatures, JSON schema, retry policy, wire transcripts. |
+| [tools/README.md](tools/README.md) | Deploy, first-time setup, permission normalisation. |
+| [mock/README.md](mock/README.md) | Run the Flask mock controller; scenario-to-FR cross-reference. |
+| [documentation/webguiExample/](documentation/webguiExample/) | Reference HTML/CSS/JS for theme variables and the live-fetch progress-bar pattern reused by the freshness tile. |
 | [documentation/phpAPIExample/api.php](documentation/phpAPIExample/api.php) | Reference `sourceidentifier`-header authentication and silent-cleanup pattern. |
-| [changelog.md](changelog.md) | Project state by date. |
+| [changelog.md](changelog.md) | Project history by date. |
 | [contributing.md](contributing.md) | How to contribute. |
 | [code_of_conduct.md](code_of_conduct.md) | Expected and unacceptable contributor behaviour. |
 

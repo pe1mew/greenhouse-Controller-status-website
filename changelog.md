@@ -8,16 +8,146 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-The repository is in design phase — no implementation code has been written yet.
+Implementation phases 0–8 of the [implementation plan](design/implementation-plan.md) are complete and the dashboard is deployed to a LAN test server. Phase 10 security pass walked through; a per-IP rate limiter and a layered no-index policy have since been added in preparation for a public-internet deployment. Phase 9 mobile QA in progress (operator-driven, iterative). Phase 12 (real ESP32 integration) deferred to a separate session.
+
+### Added — controller contract (`design/`)
+- `design/apiSpecification.md` (v1.0, 2026-05-10) — the contract for the firmware engineer. Endpoint signatures, authentication procedure, full status JSON schema with field-by-field tables for every top-level object, log upload protocol, cadence and retry policy, wire transcripts (curl examples for each path), versioning policy, and a one-page quick-reference card. Self-contained — the firmware engineer doesn't need to read the functional/technical specs to implement against this.
+
+### Added — security assessments (`design/`)
+- `design/securityAssessment_LAN.md` — security posture of the system as deployed to the LAN test server. OWASP Web Top 10 (2021) and API Top 10 (2023) walk-through, threat model, attack surface inventory, findings by category, risk matrix, outstanding items, and pre-non-LAN-deploy checklist. Captures the actual evidence collected during Phase 10.
+- `design/securityAssessment.md` — security posture for a public-internet deployment on personal-domain hosting (e.g. the same kind of environment that runs `pe1mew.nl`). Re-rates each finding for the public-exposure profile. Originally listed five blocking items; reduced to one by subsequent mitigations (see Verified — security hardening, below).
+
+### Added — test reports (`test/`)
+- `test/fd-requirements.md` — test results for FR-01 through FR-45. Status legend (PASS / DEFERRED / IN PROGRESS / NOT TESTED), per-row evidence linked to Phase 10 probes or to integration-time observations, anomalies and noteworthy findings, sign-off summary.
+- `test/ts-requirements.md` — same shape for TR-01 through TR-42, plus an "Implements" column tracing each TR back to the FRs it satisfies.
+
+### Verified — production deploy (pe1mew.nl/hbwv/)
+- Site live over HTTPS with a Let's Encrypt certificate.
+- All six security headers fire on every PHP-served response (`Strict-Transport-Security`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Content-Security-Policy: default-src 'self'; …`, `X-Robots-Tag: noindex, nofollow`).
+- `Cache-Control: no-store` on `view.php` JSON responses.
+- Wrong-secret POSTs return silent 204 and write a `[hbwv api] drop ip=… reason=… action=… http=…` line to the host's PHP error log.
+- The driver pushes status every ~10 s; dashboard populates within one cycle.
+- `https://pe1mew.nl/hbwv/.well-known/security.txt` returns the RFC 9116 abuse contact.
+
+### Changed — security headers moved from `.htaccess` to PHP-inline
+On the production host, `AllowOverride` is restricted to `AuthConfig Limit` (typical for shared hosting) — `Header always set`, `<FilesMatch>`, and `RewriteRule` directives in `.htaccess` are silently dropped. The site shipped a top-level `httproot/.htaccess` with the right hardening, but nothing applied. Switched the security-header layer to PHP `header()` calls **inlined into every entry point** (`index.php`, `api.php`, `view.php`, `log/index.php`, plus the two redirect shims), so the headers fire regardless of `AllowOverride`. The original `.htaccess` stays in the project as a no-op on this host but as defence-in-depth on hosts where `AllowOverride` is permissive — duplicated headers are harmless.
+
+### Added — PHP-7.x compatibility
+The production host runs PHP 7.x (Apache 2.4.38 on Debian 10). Two compatibility fixes:
+- `array_is_list()` polyfill at the top of `httproot/api.php` — function-not-found on hosts running PHP < 8.1.
+- Replaced arrow functions (`fn(...) =>`) with traditional anonymous functions in `httproot/view.php` and `httproot/log/index.php` — parse error on PHP < 7.4.
+
+### Changed — footer wording
+- Dashboard footer now reads `Greenhouse Controller • v<version>` (was `Greenhouse Controller Status • fw <version>`).
+- Logs-page footer now reads `Greenhouse Controller • logs` (was `Greenhouse Controller Status • logs`).
+- Schema field name (`system.fw_ver`) unchanged — only the rendered label changed.
+
+### Changed — UI polish during Phase 9 close-out
+- Removed stale CSS rules: `.big small` (averages were dropped in an earlier iteration) and the `.tile-logs` mobile rule (logs tile was moved off the dashboard to its own page).
+- Footer GitHub link gained an explicit `min-height: 44px` tap target so it meets the mobile guideline without disturbing the visual position.
+- Wind tile values use `white-space: nowrap` so `180°` and `m/s` aren't broken across lines at narrow widths.
+
+### Added — security hardening (production-grade)
+- **Audit logging on every silent-drop branch.** `gh_fail()` in `httproot/api.php` now writes one structured `error_log()` line per drop: `[hbwv api] drop ip=<addr> reason=<branch> action=<status|log> http=<code>` plus an optional `detail=` field (CR/LF stripped to prevent log injection). Verified on the LAN test server: 3 wrong-secret pushes produce 3 audit lines. Closes L-1 of the production-profile security assessment.
+- **Site-wide security headers** in `httproot/.htaccess`. `Strict-Transport-Security` (HSTS, 1 year, includeSubDomains), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, full `Content-Security-Policy` (`default-src 'self'`, with `'unsafe-inline'` for the inline `GH_CFG` script and `log/index.php`'s style block), `X-Robots-Tag: noindex, nofollow` on every response, plus `Header unset X-Powered-By`. Closes C-2, M-5, M-6 of the production-profile security assessment.
+- **Defensive HTTPS-force redirect** in `httproot/.htaccess` (the host already does this upstream, but the `RewriteRule` is there as defence in depth).
+- **Direct config-file blocks** in `httproot/.htaccess` — `<FilesMatch "^config(_template)?\.php$">` and `<FilesMatch "^\.">` deny direct GETs. Defence in depth for ID-2 and ID-7; Apache's PHP processing already produces 0-byte responses for those files, but this stops them at the access-control layer.
+
+### Added — PHP-version compatibility
+- **`array_is_list()` polyfill** in `httproot/api.php` for hosts running PHP < 8.1.
+- **Arrow functions replaced** with traditional anonymous functions in `httproot/view.php` and `httproot/log/index.php` so the code parses on PHP 7.4+. The dashboard now runs on the Debian 10 / PHP 7.x host that hosts pe1mew.nl as well as on PHP 8.x.
+
+### Added — security mitigations
+- **Per-IP rate limit** on the controller-write path. `gh_rate_limit()` in `httproot/api.php` enforces a token bucket keyed by `REMOTE_ADDR` (default 60 burst, 0.2 token/s refill ≈ 12 req/min sustained). State persists in `httproot/data/ratelimit.json` under `LOCK_EX`; idle entries (> 1 hour) pruned automatically. Configurable via the new `GH_RATE_LIMIT_BUCKET` and `GH_RATE_LIMIT_REFILL_PER_SEC` constants in `config.php` / `config_template.php`. Closes A-5 and D-3 of the production-profile security assessment.
+- **Layered no-index policy** to keep the dashboard out of search engines:
+  - `httproot/robots.txt` (`User-agent: * / Disallow: /`).
+  - `<meta name="robots" content="noindex, nofollow">` in `httproot/index.php` and `httproot/log/index.php`.
+  - `X-Robots-Tag: noindex, nofollow` HTTP header on `httproot/view.php`'s JSON responses.
+  Closes M-8 of the production-profile security assessment.
+
+### Changed — repository plumbing
+- `.gitignore` extended to cover `httproot/data/ratelimit.json`.
+
+### Verified — security hardening (production-profile)
+- Rate limiter exercised with a 70-request burst from one IP against the deployed `api.php`: 60 requests passed the bucket and got auth-rejected, 10 were rate-limited. Bucket drained from 60 to ≈ 0 with the expected slow refill during the loop.
+- All three no-index layers verified live: `curl /controller/robots.txt` returns the disallow rule; `curl /controller/` and `curl /controller/log/` show the meta tag in the HTML; `curl -D - /controller/view.php` returns the `X-Robots-Tag` header.
+
+### Accepted — production-profile residual risks
+- **Provider-side TLS termination** (C-5, H-1). The host's TLS terminator is on a different machine than the PHP-FPM pool, so the shared secret is plaintext on the host's internal hop. Operator accepts the host operator as a trust-3 entity for the deployment in question. To revisit: only if the hosting choice changes (a single-tenant VPS would eliminate this; a less-trusted provider would re-open it).
+
+### Project documentation
+- `README.md` rewritten to match the deployed-and-test-verified state (the previous version still described the project as "design phase, no code yet"). Now lists the actual repo structure, getting-started commands, and per-document purpose table.
+
+
+### Added — implementation (`httproot/`)
+- `httproot/index.php` — server-rendered dashboard shell with cache-busted asset URLs (`?v=<filemtime>`), inline `window.GH_CFG` (poll interval, default freshness interval, window names), seven tile containers (freshness always-on, climate / wind / windows / mode / sun / system hidden by default), and a footer carrying the firmware version and a GitHub link.
+- `httproot/api.php` — controller-ingest endpoint. POST-only, `sourceidentifier`-header gated, atomic status write (`.tmp` + `rename`), log-upload action with size cap and silent retention sweep. Default mode returns HTTP 204 on every path; debug mode returns explicit `4xx` / `200` JSON.
+- `httproot/view.php` — browser-read endpoint. GET-only, no auth, `Cache-Control: no-store`, attaches `age_seconds` to the read response, returns `{}` when no status has been received.
+- `httproot/log/index.php` — separate, unlinked logs page that server-renders the list with explicit per-row Download buttons, the same dark theme, and the same footer as the dashboard. Reachable only at `/<prefix>/log/`.
+- `httproot/log/logs/index.php` — directory-listing suppressor that 301-redirects `/<prefix>/log/logs/` to the logs page (workaround for hosts where `AllowOverride None` ignores `Options -Indexes`).
+- `httproot/logs/index.php` — backward-compat 301 redirect from the original `/<prefix>/logs/` location to the new `/<prefix>/log/`.
+- `httproot/assets/style.css` — dark theme variables (extended with `--blue-light`, `--green-dark`, `--grey-muted`), responsive grid (`auto-fit minmax(160px, 1fr)`), `[hidden] { display: none !important; }` to make the HTML `hidden` attribute win over class-based display rules, freshness bar styling, mode pill colour modifiers (`mode-ok`, `mode-warn`, `mode-alarm`, `mode-mute`), download-button styling, and a footer matching the reference webguiExample.
+- `httproot/assets/app.js` — drift-resistant freshness tile (1 Hz redraw anchored against `performance.now()`), tile show/hide via predicate map, payload-derived strings written via `textContent` only, windows-tile renderer with state-to-colour and state-to-text-colour maps, mode pill colouring keyed off `mode.current`, wind cardinal direction (N, NE, E, …) derived from `direction_deg`.
+- `httproot/config_template.php` — tracked template with first-time-setup banner explaining how to copy to `config.php` and rotate the secret.
+- `httproot/{data,log/logs}/.htaccess` — deny-all and extension-whitelist rules for hosts where `AllowOverride` permits them.
+
+### Added — mock controller (`mock/`)
+- `mock/app.py`, `mock/state.py`, `mock/pusher.py` — Flask app + thread-safe sim state + background pusher. The pusher loads target URL, secret, and interval from `.deploy.env` at startup and refuses to start if `MOCK_TARGET_BASE_URL` is unset.
+- `mock/templates/control.html` — control panel for toggling each top-level object, editing climate/wind values, choosing window states for M1/M2/M3, picking a mode, scheduling pushes, sending malformed JSON, sending a wrong secret, and uploading the sample log file.
+- `mock/static/style.css` — dark theme borrowed from webguiExample.
+- `mock/sample.log`, `mock/requirements.txt`, `mock/README.md`, `mock/__init__.py` — fixture log file, `flask>=3.0` + `requests>=2.31`, run instructions with scenario-to-FR mapping, package marker.
+
+### Added — deploy tooling (`tools/`)
+- `tools/deploy.ps1` — Windows PowerShell deploy script using OpenSSH `scp` and `ssh`. Reads `.deploy.env` for the SSH host alias and document root. Pre-flight check refuses to deploy if `httproot/config.php` is missing or still contains the `REPLACE_ME_BEFORE_DEPLOY` template marker. Pre-creates remote directories, runs `scp -r` (without `-p` to avoid Windows-source mode bits leaking), then normalises modes (`find … -type d -exec chmod 755`, files `0644`, then `chmod 2770` on `data/`, `log/`, and `log/logs/` so Apache's `www-data` can write).
+- `tools/README.md` — first-time setup walkthrough, run instructions, permission notes, and "known limitations on this test server (deferred)" section documenting the `AllowOverride None` situation and the one-line fix when the operator is ready to enable it.
 
 ### Added — design (`design/`)
-- `design/functional-design.md` (v0.2 draft, 2026-05-10) — externally-observable behaviour, contracts, and rules for a mobile-first, passive viewer of one ESP32-S3 greenhouse controller. Covers system context, components (public dashboard, controller ingest API, browser read API, log download), API contract with silent-drop authentication, status JSON schema, dashboard polling and tile show/hide rules, the eight-tile catalogue (freshness, climate, wind, windows, mode, sun, system, logs), the always-on freshness heartbeat tile, the plan-view windows tile (M1/M2/M3 with North up), mobile-first UI rules, security policy, error-handling policy, and 45 testable functional requirements (FR-01 through FR-45).
-- `design/technical-spec.md` (v0.2 draft, 2026-05-10) — implementation brief: directory layout, `config.php` constants, `api.php` controller-ingest endpoint with silent-drop, `view.php` browser read endpoint, log-download via Apache, atomic status-file writes via `.tmp` + `rename()`, retention sweep on upload-success, `index.php` shell with injected `window.GH_CFG`, `assets/style.css` dark theme, `assets/app.js` polling loop and tile show/hide, inline windows-tile SVG, drift-resistant freshness-tile age tracking, Apache `.htaccess` hardening, verification plan, and 42 testable implementation requirements (TR-01 through TR-42).
+- `design/functional-design.md` (v0.2 draft, 2026-05-10) — externally-observable behaviour: system context, components, API operations, status JSON schema, dashboard polling and tile show/hide rules, the always-on freshness tile, the plan-view windows tile, mobile-first UI rules, security policy, error-handling policy, FR-01 through FR-45.
+- `design/technical-spec.md` (v0.2 draft, 2026-05-10) — implementation brief: directory layout, configuration template + gitignored runtime split, `api.php` and `view.php` PHP, atomic write recipe, log retention sweep, frontend wiring, windows-tile SVG markup with current dimensions (160 × 30 / 18 / 18 — later updated to 172 × 34 / 22 / 22), Apache `.htaccess` blocks, verification plan, TR-01 through TR-42.
+- `design/implementation-plan.md` (v0.1 draft, 2026-05-10) — twelve-phase plan with effort estimates, risks, definition of done, and a verification sign-off snapshot covering phases 0–10 against the test server.
+- `design/apiSpecification.md` (v1.0, 2026-05-10) — controller-side contract: endpoint signatures, authentication, status JSON schema with field-by-field tables, log upload protocol, cadence and retry policy, wire transcripts (curl examples), versioning policy, and a one-page quick-reference card.
+
+### Added — repository plumbing
+- `.gitignore` — excludes `.deploy.env`, `.env`, virtual envs, OS artefacts, and runtime state (`httproot/data/status.json`, `httproot/log/logs/*.{log,txt}`, `httproot/config.php`).
+- `.deploy.env.example` — tracked template with `DEPLOY_HOST_ALIAS`, `DEPLOY_DOC_ROOT`, `MOCK_TARGET_BASE_URL`, `MOCK_INTERVAL_S`, `MOCK_SECRET`.
 
 ### Added — documentation (`documentation/`)
 - `documentation/webguiExample/` — reference web UI imported from the [greenhouse-Controller-Modbus-sensor-emulator](https://github.com/pe1mew/greenhouse-Controller-Modbus-sensor-emulator) project (`index.html`, `style.css`, `app.js`). Provides the dark-theme variables, `.card` styling, and live-fetch progress-bar pattern reused by the freshness tile.
-- `documentation/phpAPIExample/api.php` — reference PHP authentication + cleanup pattern (shared-secret `sourceidentifier` header check, silent older-file pruning) that `api.php` will follow.
+- `documentation/phpAPIExample/api.php` — reference PHP authentication + cleanup pattern (shared-secret `sourceidentifier` header check, silent older-file pruning).
 
 ### Added — repository
 - `LICENSE`, `license.md` — dual-license statement: source-available non-commercial for software, CC BY-NC-ND 4.0 for documentation and design.
 - `README.md`, `contributing.md`, `code_of_conduct.md` — standard repository entry-point files.
+
+### Changed — schema iterations during mobile QA
+- **Removed** `climate.temp_avg_c`, `climate.rh_avg_pct`, `wind.speed_avg_ms`, `wind.direction_avg_deg` (sliding-average fields) — operator preferred the cleaner two-line tile without averages.
+- **Removed** `system.time` (controller-reported clock) — moved out of the system tile entirely; firmware version moved to the page footer.
+- **Renamed** `sun.sunrise_utc_min` → `sun.sunrise_min`, `sun.sunset_utc_min` → `sun.sunset_min` — the controller sends these in local clock minutes, not UTC, so the field names were misleading. The dashboard silently ignores the legacy `_utc_*` aliases.
+
+### Changed — UI iterations during mobile QA
+- Windows tile geometry rebalanced multiple times: outer rect now `x=2 y=2 w=196 h=136` (2-unit margins from the SVG viewBox edges); bars are all `width=172` with M3 `height=34` and M1/M2 `height=22`; bar gaps tuned so M3↔M2 gap equals M1↔outer-bottom gap; label `font-size` walked up from 5/6 to 7 to 8 to 10 with `font-weight="bold"` to match the OFFLINE pill; OPEN bars use black text on light blue for contrast.
+- Wind tile dropped the `@` character between speed and direction and gained an 8-point cardinal label (N, NE, E, …, NW) appended after the degrees.
+- Mode pill is now coloured by severity (`AUTOMATIC` blue, `WIND_OVERRIDE`/`WINDOW_CAL` amber, `MOTOR_ALARM` red, unknown muted) instead of always being accent-blue.
+- Logs tile removed from the dashboard; logs surface only via the standalone `/log/` page (later moved from `/logs/` with a 301 redirect for back-compat).
+- Footer added carrying the project name + firmware version + GitHub link, mirroring the reference webguiExample pattern.
+
+### Verified — Phase 10 security pass (test server, 2026-05-10)
+- `POST /api.php` with wrong `sourceidentifier` → 204 silent, status.json untouched, malicious payload rejected.
+- `POST /api.php?action=log` with wrong header → 204 silent, no file stored.
+- `GET /api.php` and `POST /view.php` → 204 silent (cross-method rejection).
+- `app.js` code review: zero `innerHTML` writes from payload data, zero references to `sourceidentifier` or to the secret token literal.
+- `GET /controller/config.php` → 200 with **0-byte** body (PHP processes pure `define()` to no output; secret never reaches the wire).
+- XSS probe: `<img src=x onerror=alert(1)>` and `<script>alert(2)</script>` injected into payload string fields render as literal text on the dashboard, not as executable HTML.
+- `GH_DEBUG_RESPONSES = false` confirmed in production config.
+
+### Deferred — outstanding before non-test deployment
+- Enable `AllowOverride All` on the Apache server so the existing `httproot/data/.htaccess` and `httproot/log/logs/.htaccess` rules take effect (closes FR-36, FR-37, FR-38).
+- Move from HTTP to HTTPS so the `sourceidentifier` header is not sent in plaintext.
+- Phase 12 — real-ESP32 integration. The [API specification](design/apiSpecification.md) is the contract.
+
+---
+
+## Earlier draft (superseded)
+
+### v0.2 (design draft, 2026-05-10)
+Functional design and technical specification first published. No implementation code at that point.

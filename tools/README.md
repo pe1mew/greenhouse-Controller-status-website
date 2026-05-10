@@ -76,9 +76,12 @@ No Python, no paramiko, no PuTTY. Authentication is handled entirely by `~/.ssh/
 From the project root:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\deploy.ps1            # upload
-powershell -ExecutionPolicy Bypass -File .\tools\deploy.ps1 -DryRun    # list only
+powershell -ExecutionPolicy Bypass -File .\tools\deploy.ps1                       # upload
+powershell -ExecutionPolicy Bypass -File .\tools\deploy.ps1 -DryRun               # list only
+powershell -ExecutionPolicy Bypass -File .\tools\deploy.ps1 -AllowDevSecret       # LAN test override (see below)
 ```
+
+The script refuses to deploy if `httproot/config.php` is missing or contains either the template marker `REPLACE_ME_BEFORE_DEPLOY` or the legacy `dev-1234…` placeholder. The `-AllowDevSecret` flag is an explicit opt-in that re-permits the legacy placeholder for LAN-test deployments. Production hosts should always use a freshly-generated CSPRNG value.
 
 The `-ExecutionPolicy Bypass` is needed because the default Windows policy
 blocks running unsigned local scripts. You can also relax this once for your

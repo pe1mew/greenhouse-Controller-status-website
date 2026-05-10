@@ -18,6 +18,7 @@ Thumbs.db
 # Runtime state — must never be committed
 httproot/data/status.json
 httproot/data/status.json.tmp
+httproot/data/ratelimit.json
 httproot/log/logs/*.log
 httproot/log/logs/*.txt
 /httproot/config.php
