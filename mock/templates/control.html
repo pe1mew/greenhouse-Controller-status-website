@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock greenhouse controller</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header>
+  <h1>Mock greenhouse controller</h1>
+  <span class="muted">→ {{ target }} · interval {{ interval }}s</span>
+</header>
+
+<section>
+  <h2>Status</h2>
+  <p>Scheduler: <strong>{{ 'running' if state.scheduler_running else 'paused' }}</strong></p>
+  {% if state.last_response %}
+    <p>Last push: <strong>HTTP {{ state.last_response.code }}</strong> ({{ state.last_response.ms }} ms)</p>
+  {% else %}
+    <p>Last push: <span class="muted">none yet</span></p>
+  {% endif %}
+  <form method="post" action="{{ url_for('scheduler', action='start' if not state.scheduler_running else 'stop') }}" class="inline">
+    <button>{{ 'Resume scheduler' if not state.scheduler_running else 'Pause scheduler' }}</button>
+  </form>
+  <form method="post" action="{{ url_for('push') }}" class="inline"><button>Send one push now</button></form>
+  <form method="post" action="{{ url_for('push_malformed') }}" class="inline"><button>Send malformed JSON</button></form>
+  <form method="post" action="{{ url_for('push_bad_secret') }}" class="inline"><button>Send wrong secret</button></form>
+  <form method="post" action="{{ url_for('log_upload') }}" class="inline"><button>Upload sample log</button></form>
+</section>
+
+<section>
+  <h2>Top-level objects (toggle to include in payload)</h2>
+  {% for name, on in state.enabled_objects.items() %}
+    <form method="post" action="{{ url_for('toggle', name=name) }}" class="inline">
+      <button class="{{ 'on' if on else 'off' }}">{{ name }}: {{ 'ON' if on else 'OFF' }}</button>
+    </form>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>update_interval_s (top-level)</h2>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <input type="hidden" name="path" value="update_interval_s">
+    <label>Seconds</label>
+    <input type="number" name="value" value="{{ state.update_interval_s if state.update_interval_s is not none else '' }}" min="1" max="3600">
+    <button>Set (blank = omit field)</button>
+  </form>
+</section>
+
+<section>
+  <h2>Windows</h2>
+  {% for wid in ['M1','M2','M3'] %}
+    <form method="post" action="{{ url_for('set_window', wid=wid) }}" class="inline">
+      <label>{{ wid }}</label>
+      <select name="state">
+        {% for opt in ['OPEN','MOVING_OPEN','MOVING_CLOSE','CLOSED','UNKNOWN','GARBAGE'] %}
+          <option value="{{ opt }}" {% if state.windows[wid] == opt %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+      <button>Apply</button>
+    </form>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Climate</h2>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <label>Temp °C</label>
+    <input type="hidden" name="path" value="climate.temp_c">
+    <input type="number" step="0.1" name="value" value="{{ state.climate.temp_c }}">
+    <button>Set</button>
+  </form>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <label>RH %</label>
+    <input type="hidden" name="path" value="climate.rh_pct">
+    <input type="number" step="1" name="value" value="{{ state.climate.rh_pct }}">
+    <button>Set</button>
+  </form>
+</section>
+
+<section>
+  <h2>Wind</h2>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <label>Speed m/s</label>
+    <input type="hidden" name="path" value="wind.speed_ms">
+    <input type="number" step="0.1" name="value" value="{{ state.wind.speed_ms }}">
+    <button>Set</button>
+  </form>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <label>Direction °</label>
+    <input type="hidden" name="path" value="wind.direction_deg">
+    <input type="number" step="1" name="value" value="{{ state.wind.direction_deg }}">
+    <button>Set</button>
+  </form>
+</section>
+
+<section>
+  <h2>Mode</h2>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <label>Current</label>
+    <input type="hidden" name="path" value="mode.current">
+    <select name="value">
+      {% for opt in ['AUTOMATIC','WIND_OVERRIDE','MOTOR_ALARM','WINDOW_CAL'] %}
+        <option value="{{ opt }}" {% if state.mode.current == opt %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+    <button>Set</button>
+  </form>
+  <p class="muted">Editing the flags array is not implemented in v1; default is empty.</p>
+</section>
+
+</body>
+</html>

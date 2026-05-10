@@ -1,0 +1,10 @@
+Options -Indexes
+
+<FilesMatch "^[0-9A-Za-z._-]+\.(log|txt)$">
+    ForceType text/plain
+    Header set Content-Disposition "attachment"
+</FilesMatch>
+
+<FilesMatch "^(?!^[0-9A-Za-z._-]+\.(log|txt)$).*$">
+    Require all denied
+</FilesMatch>

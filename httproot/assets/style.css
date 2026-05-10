@@ -1,0 +1,199 @@
+:root {
+  --bg:         #1a1a2e;
+  --card:       #16213e;
+  --accent:     #0f3460;
+  --fg:         #e0e0e0;
+  --muted:      #999;
+  --green:      #4caf50;
+  --red:        #f44336;
+  --yellow:     #ff9800;
+  --blue-light: #7ec8e3;
+  --green-dark: #1f5132;
+  --grey-muted: #5a6275;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Force the HTML `hidden` attribute to win over class-based display rules
+   (e.g. .badge sets display: inline-block, which would otherwise override
+   the user-agent's [hidden] { display: none }). */
+[hidden] { display: none !important; }
+
+body {
+  font-family: system-ui, sans-serif;
+  font-size: 16px;
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 100vh;
+}
+
+#conn-banner {
+  background: var(--red);
+  color: #fff;
+  text-align: center;
+  padding: 8px;
+  font-weight: 700;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+.tile {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.tile-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.tile-freshness { grid-column: 1 / -1; }
+.tile-windows   { grid-column: span 2; min-width: 280px; }
+
+.dashboard.stale .tile { opacity: 0.55; }
+.dashboard.stale .tile-freshness { opacity: 1; }
+
+.big { font-size: 28px; line-height: 1.2; }
+.big small { font-size: 12px; color: var(--muted); margin-left: 8px; }
+.muted { color: var(--muted); font-size: 12px; }
+
+.fresh-track {
+  height: 14px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.fresh-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--red);
+  border-radius: 4px;
+  transition: width 1s linear, background-color 200ms linear;
+}
+.fresh-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  gap: 8px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 11px;
+}
+.badge.offline { background: var(--red); color: #fff; }
+
+.pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: var(--accent);
+  color: var(--fg);
+  font-weight: 700;
+  font-size: 14px;
+}
+.pill.mode-ok    { background: var(--accent);     color: var(--fg); }
+.pill.mode-warn  { background: var(--yellow);     color: #000; }
+.pill.mode-alarm { background: var(--red);        color: #fff; }
+.pill.mode-mute  { background: var(--grey-muted); color: var(--fg); }
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.flags .badge { font-size: 10px; }
+.flag-warn  { background: var(--yellow);     color: #000; }
+.flag-alarm { background: var(--red);        color: #fff; }
+.flag-info  { background: var(--blue-light); color: #000; }
+.flag-mute  { background: var(--grey-muted); color: #fff; }
+
+.windows-svg {
+  width: 100%;
+  height: auto;
+  max-height: 240px;
+  display: block;
+}
+
+.logs-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+.logs-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--accent);
+}
+.logs-list li:last-child { border-bottom: none; }
+.log-info {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  font-size: 13px;
+}
+.log-info small {
+  color: var(--muted);
+  margin-left: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.btn-download {
+  background: var(--accent);
+  color: var(--fg);
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-download:hover { background: #1a5276; }
+
+@media (max-width: 480px) {
+  .tile-logs    { grid-column: 1 / -1; }
+  .tile-windows { grid-column: 1 / -1; }
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-width: 900px;
+  margin: 2rem auto 0;
+  padding: 0.6rem 12px;
+  border-top: 1px solid var(--accent);
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+footer a:hover { color: var(--fg); }

@@ -1,0 +1,23 @@
+# Secrets and environment files
+.deploy.env
+.env
+*.env.local
+
+# Python virtual envs
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Runtime state — must never be committed
+httproot/data/status.json
+httproot/data/status.json.tmp
+httproot/log/logs/*.log
+httproot/log/logs/*.txt
+/httproot/config.php
