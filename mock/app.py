@@ -29,7 +29,8 @@ def control():
     return render_template(
         'control.html',
         state=state.snapshot(),
-        target=pusher.TARGET,
+        target=pusher.get_target(),
+        target_error=request.args.get('target_error'),
         interval=pusher.INTERVAL,
     )
 
@@ -37,6 +38,15 @@ def control():
 @app.route('/set', methods=['POST'])
 def set_field():
     state.set_field(request.form['path'], _coerce(request.form['value']))
+    return redirect(url_for('control'))
+
+
+@app.route('/target', methods=['POST'])
+def set_target():
+    try:
+        pusher.set_target(request.form.get('target', ''))
+    except ValueError as e:
+        return redirect(url_for('control', target_error=str(e)))
     return redirect(url_for('control'))
 
 

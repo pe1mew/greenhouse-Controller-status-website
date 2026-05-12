@@ -44,16 +44,15 @@ header('X-Robots-Tag: noindex, nofollow');
   <section id="tile-climate" class="tile" hidden>
     <h3 class="tile-title" title="Air temperature and humidity inside the greenhouse">Climate</h3>
     <p class="big" id="cl-temp" title="Current air temperature in degrees Celsius"><strong></strong> °C</p>
+    <p class="setpoint" id="cl-temp-sp" title="Currently active maximum-temperature setpoint (day / night, depending on daylight)">max <span id="cl-temp-sp-max">—</span> °C</p>
     <p class="big" id="cl-rh"   title="Current relative humidity (percentage of maximum at this temperature)"><strong></strong> %</p>
+    <p class="setpoint" id="cl-rh-sp" title="Currently active humidity setpoints (min / max)">min <span id="cl-rh-sp-min">—</span> % · max <span id="cl-rh-sp-max">—</span> %</p>
   </section>
 
   <section id="tile-wind" class="tile" hidden>
     <h3 class="tile-title" title="Wind conditions reported by the controller's wind sensor">Wind</h3>
-    <p class="big" id="wd-main">
-      <strong title="Wind speed in metres per second"></strong> m/s
-      <strong title="Wind direction in degrees (0° = North, 90° = East, 180° = South, 270° = West)"></strong>°
-      <strong title="Compass cardinal direction (N / NE / E / SE / S / SW / W / NW)"></strong>
-    </p>
+    <p class="big" id="wd-speed" title="Wind speed in metres per second"><strong></strong> m/s</p>
+    <p class="big" id="wd-dir"   title="Wind direction in degrees (0° = North, 90° = East, 180° = South, 270° = West) with compass cardinal"><strong></strong>° <strong></strong></p>
   </section>
 
   <section id="tile-windows" class="tile tile-windows" hidden>
@@ -90,7 +89,7 @@ header('X-Robots-Tag: noindex, nofollow');
   </section>
 
   <section id="tile-sun" class="tile" hidden>
-    <h3 class="tile-title" title="Daylight status and today's sunrise / sunset times">Sun</h3>
+    <h3 class="tile-title" title="Daylight status and today's sunrise / sunset times">Daytime</h3>
     <p class="big"><span id="sun-icon" title="Day / night indicator">☀</span></p>
     <p class="muted" title="Sunrise time today (HH:MM, local time)">↑ <span id="sun-rise">—</span></p>
     <p class="muted" title="Sunset time today (HH:MM, local time)">↓ <span id="sun-set">—</span></p>

@@ -35,7 +35,7 @@ there is picked up automatically — no env var dance per launch.
 
 | Key | Default | Purpose |
 |---|---|---|
-| `MOCK_TARGET_BASE_URL` | _(no default — exits with an error if unset)_ | Where to send pushes (root of the PHP site, e.g. `http://192.168.20.232/controller`). |
+| `MOCK_TARGET_BASE_URL` | _(no default — exits with an error if unset)_ | Where to send pushes (root of the PHP site, e.g. `http://192.168.20.232/controller`). Bootstraps the initial value; can be flipped at runtime from the *Push target* widget at the top of the control panel — useful for switching between LAN test and `https://pe1mew.nl/hbwv` without restarting. |
 | `MOCK_SECRET` | `dev-1234567890abcdef-please-rotate-in-prod` | Value of the `sourceidentifier` header. **Must match `GH_SECRET_TOKEN`** in `httproot/config.php`. |
 | `MOCK_INTERVAL_S` | `10` | Auto-push cadence. Also used as the default `update_interval_s` in payloads. |
 

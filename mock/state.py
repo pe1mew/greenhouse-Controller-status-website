@@ -3,6 +3,7 @@ import threading
 import time
 
 _lock = threading.Lock()
+_STARTED_AT = time.monotonic()
 
 DEFAULTS = {
     'enabled_objects': {
@@ -10,7 +11,10 @@ DEFAULTS = {
         'mode':    True, 'sun':  True, 'system':  True,
     },
     'update_interval_s': 10,
-    'climate':  {'temp_c': 24.5, 'rh_pct': 72},
+    'climate':  {'temp_c': 24.5, 'rh_pct': 72,
+                 'temp_max_active': 28,
+                 'rh_max_active': 75, 'rh_min_active': 50,
+                 'rh_ctrl_enabled': True},
     'wind':     {'speed_ms': 3.5, 'direction_deg': 180},
     'windows':  {'M1': 'OPEN', 'M2': 'MOVING_OPEN', 'M3': 'CLOSED'},
     'mode':     {'current': 'AUTOMATIC', 'flags': []},
@@ -32,6 +36,17 @@ def build_payload():
         for name, on in state['enabled_objects'].items():
             if on:
                 p[name] = copy.deepcopy(state[name])
+        # Inject live uptime if the system block is being sent. Computed from
+        # mock process start so the dashboard's Uptime row shows realistic
+        # ticking values across the bucket boundaries (s / m / h / d).
+        if 'system' in p:
+            p['system']['uptime_s'] = int(time.monotonic() - _STARTED_AT)
+        # API contract: when rh_ctrl_enabled is False the controller omits
+        # rh_min_active / rh_max_active. Mirror that so the dashboard's
+        # disabled-state grayout can be exercised end-to-end.
+        if 'climate' in p and p['climate'].get('rh_ctrl_enabled') is False:
+            p['climate'].pop('rh_min_active', None)
+            p['climate'].pop('rh_max_active', None)
         return p
 
 

@@ -228,12 +228,17 @@ The controller decides which top-level objects to include. **A missing top-level
   "update_interval_s": 30,
 
   "climate": {
-    "temp_c":   24.5,
-    "rh_pct":   72
+    "temp_c":          24.5,
+    "rh_pct":          72,
+    "temp_max_active": 28,
+    "rh_max_active":   75,
+    "rh_min_active":   50,
+    "rh_ctrl_enabled": true
   },
   "wind": {
-    "speed_ms":      3.5,
-    "direction_deg": 180
+    "speed_ms":                3.5,
+    "direction_deg":           180,
+    "direction_variation_deg": 60
   },
   "windows": {
     "M1": "OPEN",
@@ -253,7 +258,12 @@ The controller decides which top-level objects to include. **A missing top-level
     "ntp_synced":    true,
     "wifi_ip":       "192.168.1.100",
     "wifi_rssi_dbm": -45,
-    "fw_ver":        "1.17.0"
+    "fw_ver":        "1.17.0",
+    "asset_version": "1.17.0",
+    "uptime_s":      84321,
+    "ts_unix":       1778442502,
+    "time_iso":      "2026-05-10T21:48:22",
+    "eg1":           0
   }
 }
 ```
@@ -273,8 +283,14 @@ Tile shows iff this object is present.
 |---|---|---|---|---|
 | `temp_c` | number | °C | typical -20 to +60 | optional — line hides if absent |
 | `rh_pct` | integer | % | 0 – 100 | optional — line hides if absent |
+| `temp_max_active` | number | °C | typical 15 – 40 | optional — setpoint sub-line hides if absent. Currently-active T-max setpoint (controller chooses day or night based on `sun.is_daytime`). |
+| `rh_max_active` | number | % | 0 – 100 | optional — must be omitted when `rh_ctrl_enabled` is `false` (per design, since 1.17.23). |
+| `rh_min_active` | number | % | 0 – 100 | optional — same omission rule as `rh_max_active`. |
+| `rh_ctrl_enabled` | boolean | — | — | optional. When `false`, the dashboard dims the RH-setpoint sub-line and shows em-dashes. |
 
-Either field alone is enough to populate the climate tile. If both are absent and the `climate` object is empty `{}`, the tile renders empty (the title shows but no readings).
+Either of `temp_c` / `rh_pct` alone is enough to populate the main tile readings. If all keys are absent and the `climate` object is empty `{}`, the tile renders empty (the title shows but no readings).
+
+The setpoint sub-lines appear directly under the matching big value, smaller and non-bold. When `rh_ctrl_enabled === false` the controller MUST omit `rh_min_active` / `rh_max_active`; the dashboard renders the dimmed `min — % · max — %` placeholder regardless of which is present.
 
 ### 6.4 `wind` (optional)
 
@@ -284,8 +300,9 @@ Tile shows iff this object is present.
 |---|---|---|---|---|
 | `speed_ms` | number | m/s | ≥ 0, typical 0 – 50 | optional |
 | `direction_deg` | integer | ° | 0 – 359 | optional |
+| `direction_variation_deg` | integer | ° | 0 – 360 | optional. Arc width spanning all direction samples in the sliding window. Currently informational only — not rendered on the dashboard. |
 
-The dashboard derives the cardinal label (N, NE, E, …) from `direction_deg` automatically. The controller does not send the cardinal — only the degrees.
+The dashboard derives the cardinal label (N, NE, E, …) from `direction_deg` automatically. The controller does not send the cardinal — only the degrees. Speed and direction are now displayed on separate lines (since the 2026-05-10 UI iteration).
 
 ### 6.5 `windows` (optional)
 
@@ -323,10 +340,13 @@ Tile shows iff this object is present.
 | Value | Pill colour |
 |---|---|
 | `AUTOMATIC` | accent blue (normal operation) |
+| `STANDBY` | muted grey (controller paused, no active climate control) |
 | `WIND_OVERRIDE` | amber (wind safety active) |
 | `WINDOW_CAL` | amber (calibration in progress) |
 | `MOTOR_ALARM` | red (emergency stop active) |
 | anything else | muted grey |
+
+**Duplicate-state suppression (since 2026-05-10):** when `mode.current` is `WIND_OVERRIDE` / `WINDOW_CAL` / `MOTOR_ALARM` and `mode.flags` also contains the corresponding flag (`wind_override` / `calibrating` / `motor_alarm`), the dashboard renders only the mode pill and silently drops the duplicate flag badge. The controller may continue to send both; the dashboard does the dedup.
 
 **`mode.flags` vocabulary** — the controller decodes its internal `EG1` bitmask before sending. Each set bit becomes one string in the array. Empty array (or omitted field) → no flag badges.
 
@@ -360,12 +380,17 @@ Tile shows iff this object is present.
 
 | Field | Type | Unit | Notes |
 |---|---|---|---|
-| `ntp_synced` | boolean | — | shown as "NTP ok" / "NTP pending" |
-| `wifi_ip` | string | dotted decimal IPv4 | e.g. `"192.168.1.100"` |
-| `wifi_rssi_dbm` | integer | dBm | typically negative |
-| `fw_ver` | string | semver-ish | shown in the dashboard footer (not in the system tile itself) |
+| `ntp_synced` | boolean | — | Shown as "NTP ok" / "NTP pending". |
+| `wifi_ip` | string | dotted decimal IPv4 | Accepted but **not rendered** since 2026-05-10 (operationally noise on a LAN dashboard). Controller still sends it for API compatibility. |
+| `wifi_rssi_dbm` | integer | dBm | Typically negative. Rendered as a horizontal signal-strength bar labelled "WiFi" (linear map −90 → 0 %, −30 → 100 %, green ≥ −54, yellow ≥ −72, red below). The dBm value appears in the bar's hover tooltip. |
+| `fw_ver` | string | semver-ish | Shown in the dashboard footer (not in the system tile itself). |
+| `asset_version` | string | semver-ish | Web-assets version from `/manifest.json`. Equal to `fw_ver` in normal operation; differs only after an incomplete OTA. Currently informational; not rendered. |
+| `uptime_s` | integer | seconds since boot | Rendered in the system tile as `Ns` / `Nm Ns` / `Nh Nm` / `Nd Nh Nm`, picking the most compact representation. |
+| `ts_unix` | integer | Unix epoch (seconds, UTC) | Controller-reported wall-clock. Not rendered (the server's `received_at` is authoritative for freshness). |
+| `time_iso` | string | ISO-8601 local | Human-readable mirror of `ts_unix`. Not rendered. |
+| `eg1` | integer | bitmask | Raw EG1 register for debugging. Not rendered. The dashboard reads decoded flag names from `mode.flags`, not from this bitmask. |
 
-`fw_ver` is rendered in the page footer rather than the system tile. The controller still sends it in `system.fw_ver`.
+The system tile renders three vertically stacked, left-aligned rows: the WiFi signal-strength bar, NTP/RTC status, and uptime. IP address, dBm number, firmware version, and the various clock fields are intentionally not on the tile (firmware version is in the footer; the others are reserved for future diagnostics).
 
 ### 6.9 Server-added fields — DO NOT SEND
 
@@ -548,12 +573,17 @@ SCHEMA              :
   {
     "type": "status",
     "update_interval_s": <int>,        ← REQUIRED
-    "climate":  { "temp_c", "rh_pct" },
-    "wind":     { "speed_ms", "direction_deg" },
+    "climate":  { "temp_c", "rh_pct",
+                  "temp_max_active",
+                  "rh_max_active", "rh_min_active",  ← omit when rh_ctrl_enabled is false
+                  "rh_ctrl_enabled" },
+    "wind":     { "speed_ms", "direction_deg", "direction_variation_deg" },
     "windows":  { "M1", "M2", "M3" },  ← values: OPEN / MOVING_OPEN / MOVING_CLOSE / CLOSED / UNKNOWN
-    "mode":     { "current", "flags": [...] },
+    "mode":     { "current", "flags": [...] },   ← current: AUTOMATIC / STANDBY / WIND_OVERRIDE / WINDOW_CAL / MOTOR_ALARM
     "sun":      { "is_daytime", "sunrise_min", "sunset_min" },
-    "system":   { "ntp_synced", "wifi_ip", "wifi_rssi_dbm", "fw_ver" }
+    "system":   { "ntp_synced", "wifi_ip", "wifi_rssi_dbm", "fw_ver",
+                  "asset_version", "uptime_s",
+                  "ts_unix", "time_iso", "eg1" }
   }
 
 LOG ENDPOINT        : POST <base>/api.php?action=log

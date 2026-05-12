@@ -44,12 +44,42 @@ function renderClimate(c) {
     tempEl.hidden = true;
   }
 
+  // Temperature setpoint sub-line. Single value (currently-active T-max,
+  // controller already chose day / night based on sun.is_daytime).
+  const tempSp = $('cl-temp-sp');
+  if (typeof c.temp_max_active === 'number' && isFinite(c.temp_max_active)) {
+    tempSp.hidden = false;
+    setText('cl-temp-sp-max', fmtNum(c.temp_max_active, 1));
+  } else {
+    tempSp.hidden = true;
+  }
+
   const rhEl = $('cl-rh');
   if ('rh_pct' in c) {
     rhEl.hidden = false;
     rhEl.querySelector('strong').textContent = fmtNum(c.rh_pct, 0);
   } else {
     rhEl.hidden = true;
+  }
+
+  // RH setpoint sub-line. When rh_ctrl_enabled === false, the controller
+  // omits rh_min_active / rh_max_active per the API contract; the line is
+  // dimmed and shows em-dashes.
+  const rhSp = $('cl-rh-sp');
+  if (c.rh_ctrl_enabled === false) {
+    rhSp.hidden = false;
+    rhSp.classList.add('disabled');
+    setText('cl-rh-sp-min', '—');
+    setText('cl-rh-sp-max', '—');
+    rhSp.title = 'Humidity control is disabled; setpoints inactive';
+  } else if (typeof c.rh_min_active === 'number' || typeof c.rh_max_active === 'number') {
+    rhSp.hidden = false;
+    rhSp.classList.remove('disabled');
+    setText('cl-rh-sp-min', typeof c.rh_min_active === 'number' ? fmtNum(c.rh_min_active, 0) : '—');
+    setText('cl-rh-sp-max', typeof c.rh_max_active === 'number' ? fmtNum(c.rh_max_active, 0) : '—');
+    rhSp.title = 'Currently active humidity setpoints (min / max)';
+  } else {
+    rhSp.hidden = true;
   }
 }
 
@@ -65,11 +95,12 @@ function renderWind(w) {
   if (!w) { tile.hidden = true; return; }
   tile.hidden = false;
 
-  const main = $('wd-main');
-  const strongs = main.querySelectorAll('strong');
-  strongs[0].textContent = 'speed_ms' in w ? fmtNum(w.speed_ms, 1) : '—';
-  strongs[1].textContent = 'direction_deg' in w ? fmtNum(w.direction_deg, 0) : '—';
-  strongs[2].textContent = 'direction_deg' in w ? cardinalFromDeg(w.direction_deg) : '';
+  $('wd-speed').querySelector('strong').textContent =
+    'speed_ms' in w ? fmtNum(w.speed_ms, 1) : '—';
+
+  const dirStrongs = $('wd-dir').querySelectorAll('strong');
+  dirStrongs[0].textContent = 'direction_deg' in w ? fmtNum(w.direction_deg, 0) : '—';
+  dirStrongs[1].textContent = 'direction_deg' in w ? cardinalFromDeg(w.direction_deg) : '';
 }
 
 const FLAG_CLASS = {
@@ -106,6 +137,15 @@ const MODE_DESC = {
   MOTOR_ALARM:   'Motor fault detected — manual intervention required',
 };
 
+// Mode-to-flag aliases: when the mode pill already shows one of these states,
+// the corresponding flag in mode.flags is redundant and is suppressed in the
+// badge row so each state surfaces exactly once.
+const MODE_FLAG_DUPE = {
+  WIND_OVERRIDE: 'wind_override',
+  WINDOW_CAL:    'calibrating',
+  MOTOR_ALARM:   'motor_alarm',
+};
+
 function renderMode(m) {
   const tile = $('tile-mode');
   if (!m) { tile.hidden = true; return; }
@@ -119,7 +159,9 @@ function renderMode(m) {
   const flagsEl = $('md-flags');
   clearChildren(flagsEl);
   if (Array.isArray(m.flags)) {
+    const dupe = MODE_FLAG_DUPE[m.current];
     for (const f of m.flags) {
+      if (f === dupe) continue; // already represented by the mode pill
       const span = document.createElement('span');
       span.className = 'badge ' + (FLAG_CLASS[f] || 'flag-mute');
       span.textContent = f;

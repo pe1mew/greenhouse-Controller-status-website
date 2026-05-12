@@ -14,6 +14,17 @@
 </header>
 
 <section>
+  <h2>Push target</h2>
+  <form method="post" action="{{ url_for('set_target') }}" class="inline">
+    <label>Base URL</label>
+    <input type="url" name="target" value="{{ target }}" placeholder="https://host/path" size="48" required>
+    <button>Set</button>
+  </form>
+  {% if target_error %}<p class="muted" style="color:var(--red)">{{ target_error }}</p>{% endif %}
+  <p class="muted">The mock appends <code>/api.php</code>. Reverts to the <code>MOCK_TARGET_BASE_URL</code> env value on restart.</p>
+</section>
+
+<section>
   <h2>Status</h2>
   <p>Scheduler: <strong>{{ 'running' if state.scheduler_running else 'paused' }}</strong></p>
   {% if state.last_response %}
@@ -77,6 +88,30 @@
     <input type="hidden" name="path" value="climate.rh_pct">
     <input type="number" step="1" name="value" value="{{ state.climate.rh_pct }}">
     <button>Set</button>
+  </form>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <label>T-max setpoint °C</label>
+    <input type="hidden" name="path" value="climate.temp_max_active">
+    <input type="number" step="1" name="value" value="{{ state.climate.temp_max_active }}">
+    <button>Set</button>
+  </form>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <label>RH-min setpoint %</label>
+    <input type="hidden" name="path" value="climate.rh_min_active">
+    <input type="number" step="1" name="value" value="{{ state.climate.rh_min_active }}">
+    <button>Set</button>
+  </form>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <label>RH-max setpoint %</label>
+    <input type="hidden" name="path" value="climate.rh_max_active">
+    <input type="number" step="1" name="value" value="{{ state.climate.rh_max_active }}">
+    <button>Set</button>
+  </form>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <label>RH control</label>
+    <input type="hidden" name="path" value="climate.rh_ctrl_enabled">
+    <input type="hidden" name="value" value="{{ 'false' if state.climate.rh_ctrl_enabled else 'true' }}">
+    <button class="{{ 'on' if state.climate.rh_ctrl_enabled else 'off' }}">{{ 'ON' if state.climate.rh_ctrl_enabled else 'OFF' }} — click to toggle</button>
   </form>
 </section>
 

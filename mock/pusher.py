@@ -24,13 +24,39 @@ def _load_deploy_env():
 
 _load_deploy_env()
 
-TARGET = os.environ.get('MOCK_TARGET_BASE_URL')
-if not TARGET:
+# Mutable target URL — read at every push so it can be flipped at runtime via
+# the control panel (set_target). Initial value comes from MOCK_TARGET_BASE_URL.
+# Trailing slashes are stripped so '/api.php' concatenation produces clean URLs.
+_target_lock = threading.Lock()
+_target = os.environ.get('MOCK_TARGET_BASE_URL')
+if not _target:
     sys.exit(
         "MOCK_TARGET_BASE_URL is not set.\n"
         "  Set it in .deploy.env at the project root, or export it before launching.\n"
         "  Example: http://192.168.20.232/controller"
     )
+_target = _target.rstrip('/')
+
+
+def get_target():
+    with _target_lock:
+        return _target
+
+
+def set_target(url):
+    """Update the push target URL. Raises ValueError on invalid input."""
+    global _target
+    if url is None:
+        raise ValueError('target URL must be non-empty')
+    url = url.strip().rstrip('/')
+    if not url:
+        raise ValueError('target URL must be non-empty')
+    if not (url.startswith('http://') or url.startswith('https://')):
+        raise ValueError('target URL must start with http:// or https://')
+    with _target_lock:
+        _target = url
+    return _target
+
 
 SECRET = os.environ.get('MOCK_SECRET', 'dev-1234567890abcdef-please-rotate-in-prod')
 INTERVAL = int(os.environ.get('MOCK_INTERVAL_S', '10'))
@@ -53,22 +79,22 @@ def _post(url, *, json=None, data=None, headers=None, secret=None):
 
 
 def push_status_now():
-    return _post(f'{TARGET}/api.php', json=state.build_payload())
+    return _post(f'{get_target()}/api.php', json=state.build_payload())
 
 
 def push_malformed():
-    return _post(f'{TARGET}/api.php', data='not-json',
+    return _post(f'{get_target()}/api.php', data='not-json',
                  headers={'Content-Type': 'application/json'})
 
 
 def push_bad_secret():
-    return _post(f'{TARGET}/api.php', json=state.build_payload(), secret='WRONG')
+    return _post(f'{get_target()}/api.php', json=state.build_payload(), secret='WRONG')
 
 
 def upload_log(path):
     with open(path, 'rb') as f:
         body = f.read()
-    return _post(f'{TARGET}/api.php?action=log', data=body,
+    return _post(f'{get_target()}/api.php?action=log', data=body,
                  headers={'Content-Type': 'text/plain'})
 
 

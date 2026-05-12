@@ -68,6 +68,17 @@ body {
 .big strong { white-space: nowrap; }   /* keep "180°" together at narrow widths */
 .muted { color: var(--muted); font-size: 12px; }
 
+/* Setpoint sub-line under a .big value: smaller, not bold, muted colour.
+   Add .disabled to dim it further (e.g. RH setpoints when rh_ctrl_enabled is false). */
+.setpoint {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--muted);
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
+.setpoint.disabled { opacity: 0.45; }
+
 .fresh-track {
   height: 14px;
   background: var(--bg);

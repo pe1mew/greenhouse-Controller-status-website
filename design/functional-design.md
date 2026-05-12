@@ -174,12 +174,12 @@ The browser does not poll faster when stale; the controller drives cadence.
 | Tile | Show when | What it shows |
 |---|---|---|
 | Freshness | always | Countdown progress bar coloured by age; last-update timestamp; configured update interval; current age. (See § 8.) |
-| Climate | `climate` object present | Temperature in °C; relative humidity in %. |
-| Wind | `wind` object present | Wind speed in m/s and direction in degrees, with the 8-point cardinal label (N, NE, E, SE, S, SW, W, NW) appended. |
+| Climate | `climate` object present | Temperature in °C and relative humidity in %, each on its own line. Under each value, a smaller non-bold setpoint sub-line: T-max for temperature; min / max for RH. The RH sub-line is dimmed (em-dashes shown) when `climate.rh_ctrl_enabled` is `false`. |
+| Wind | `wind` object present | Wind speed in m/s and direction in degrees with the 8-point cardinal label (N, NE, E, SE, S, SW, W, NW), on two separate lines. |
 | Windows | `windows` object present | Three coloured bars representing M1, M2, and M3 in plan view. (See § 9.) |
-| Mode | `mode` object present | The current mode as a pill label, plus one badge per active mode flag. |
-| Sun | `sun` object present | Sunrise and sunset times (controller local time); an indicator of whether it is currently daytime. |
-| System | `system` object present | Network address, signal strength, NTP-sync state, firmware version. |
+| Mode | `mode` object present | The current mode as a pill label, plus one badge per active mode flag. Flags that duplicate the current mode (`wind_override` ↔ `WIND_OVERRIDE`, `calibrating` ↔ `WINDOW_CAL`, `motor_alarm` ↔ `MOTOR_ALARM`) are suppressed so each state surfaces exactly once. |
+| Daytime | `sun` object present | Day/night indicator (☀ / ☾); sunrise and sunset times (controller local time). (Internal id remains `tile-sun`; the heading was renamed from "Sun" → "Daylight" → "Daytime" during the 2026-05-10 UI iteration.) |
+| System | `system` object present | WiFi signal strength as a horizontal bar; NTP/RTC sync status; uptime since boot. Firmware version is shown in the page footer, not on this tile. |
 
 The dashboard does not have a Logs tile. Log files uploaded by the
 controller are served from a **separate, unlinked page** at `/log/`. The
@@ -467,11 +467,16 @@ The controller decides which top-level objects to include. A missing top-level o
   "update_interval_s": 30,
   "climate": {
     "temp_c": 24.5,
-    "rh_pct": 72
+    "rh_pct": 72,
+    "temp_max_active": 28,
+    "rh_max_active": 75,
+    "rh_min_active": 50,
+    "rh_ctrl_enabled": true
   },
   "wind": {
     "speed_ms": 3.5,
-    "direction_deg": 180
+    "direction_deg": 180,
+    "direction_variation_deg": 60
   },
   "windows": {
     "M1": "OPEN",
@@ -491,7 +496,12 @@ The controller decides which top-level objects to include. A missing top-level o
     "ntp_synced": true,
     "wifi_ip": "192.168.1.100",
     "wifi_rssi_dbm": -45,
-    "fw_ver": "1.17.0"
+    "fw_ver": "1.17.0",
+    "asset_version": "1.17.0",
+    "uptime_s": 84321,
+    "ts_unix": 1778442502,
+    "time_iso": "2026-05-10T21:48:22",
+    "eg1": 0
   }
 }
 ```
@@ -499,20 +509,28 @@ The controller decides which top-level objects to include. A missing top-level o
 | Field | Type | Unit | Used by tile |
 |---|---|---|---|
 | `update_interval_s` | integer | s | Freshness (always-on) |
-| `climate.temp_c` | number | °C | Climate |
-| `climate.rh_pct` | integer | % | Climate |
+| `climate.temp_c` | number | °C | Climate (main reading) |
+| `climate.rh_pct` | integer | % | Climate (main reading) |
+| `climate.temp_max_active` | number | °C | Climate (setpoint sub-line) |
+| `climate.rh_max_active` | number | % | Climate (setpoint sub-line; omitted when ctrl disabled) |
+| `climate.rh_min_active` | number | % | Climate (setpoint sub-line; omitted when ctrl disabled) |
+| `climate.rh_ctrl_enabled` | boolean | — | Climate (drives the RH setpoint dim/grey-out) |
 | `wind.speed_ms` | number | m/s | Wind |
 | `wind.direction_deg` | integer | ° (0–359) | Wind |
+| `wind.direction_variation_deg` | integer | ° | accepted; not rendered |
 | `windows.M1` / `M2` / `M3` | enum string | — | Windows |
-| `mode.current` | enum string | — | Mode (pill) |
-| `mode.flags` | string array | — | Mode (badges) |
-| `sun.is_daytime` | boolean | — | Sun (icon) |
-| `sun.sunrise_min` | integer | minutes from local midnight | Sun |
-| `sun.sunset_min` | integer | minutes from local midnight | Sun |
-| `system.ntp_synced` | boolean | — | System |
-| `system.wifi_ip` | string | dotted decimal | System |
-| `system.wifi_rssi_dbm` | integer | dBm | System |
-| `system.fw_ver` | string | semver-ish | System |
+| `mode.current` | enum string | — | Mode (pill). Vocabulary: `AUTOMATIC`, `STANDBY`, `WIND_OVERRIDE`, `WINDOW_CAL`, `MOTOR_ALARM`. |
+| `mode.flags` | string array | — | Mode (badges); duplicates of `mode.current` are suppressed |
+| `sun.is_daytime` | boolean | — | Daytime (icon) |
+| `sun.sunrise_min` | integer | minutes from local midnight | Daytime |
+| `sun.sunset_min` | integer | minutes from local midnight | Daytime |
+| `system.ntp_synced` | boolean | — | System (NTP / RTC status row) |
+| `system.wifi_ip` | string | dotted decimal | accepted; not rendered since 2026-05-10 |
+| `system.wifi_rssi_dbm` | integer | dBm | System (rendered as a horizontal "WiFi" signal-strength bar) |
+| `system.fw_ver` | string | semver-ish | Footer (not on the system tile) |
+| `system.asset_version` | string | semver-ish | accepted; not rendered |
+| `system.uptime_s` | integer | s | System (uptime row, formatted) |
+| `system.ts_unix` / `time_iso` / `eg1` | various | — | accepted; not rendered |
 
 **Window state vocabulary:** `UNKNOWN`, `CLOSED`, `MOVING_OPEN`, `OPEN`, `MOVING_CLOSE`.
 
