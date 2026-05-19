@@ -23,6 +23,11 @@ DEFAULTS = {
                  'wifi_rssi_dbm': -45, 'fw_ver': '1.17.0'},
     'scheduler_running': True,
     'last_response': None,
+    # When set to a non-negative integer, build_payload() emits this value as
+    # system.uptime_s instead of computing it from the mock process start time.
+    # Lets the operator exercise the dashboard's Ns / Nm Ns / Nh Nm / Nd Nh Nm
+    # uptime buckets without leaving the mock running for hours.
+    'uptime_override_s': None,
 }
 
 state = copy.deepcopy(DEFAULTS)
@@ -36,11 +41,17 @@ def build_payload():
         for name, on in state['enabled_objects'].items():
             if on:
                 p[name] = copy.deepcopy(state[name])
-        # Inject live uptime if the system block is being sent. Computed from
-        # mock process start so the dashboard's Uptime row shows realistic
-        # ticking values across the bucket boundaries (s / m / h / d).
+        # Inject uptime if the system block is being sent. By default it
+        # ticks from the mock process start (so the dashboard's Uptime row
+        # shows realistic increments across the s / m / h / d buckets). When
+        # uptime_override_s is set, that fixed value is emitted instead — used
+        # to verify the dashboard's format buckets (e.g. 86400 → "1d 0h 0m").
         if 'system' in p:
-            p['system']['uptime_s'] = int(time.monotonic() - _STARTED_AT)
+            override = state.get('uptime_override_s')
+            if isinstance(override, int) and override >= 0:
+                p['system']['uptime_s'] = override
+            else:
+                p['system']['uptime_s'] = int(time.monotonic() - _STARTED_AT)
         # API contract: when rh_ctrl_enabled is False the controller omits
         # rh_min_active / rh_max_active. Mirror that so the dashboard's
         # disabled-state grayout can be exercised end-to-end.
@@ -66,6 +77,16 @@ def toggle_object(name):
     with _lock:
         if name in state['enabled_objects']:
             state['enabled_objects'][name] = not state['enabled_objects'][name]
+
+
+def toggle_flag(name):
+    """Add `name` to mode.flags if absent, remove it if present."""
+    with _lock:
+        flags = state['mode'].setdefault('flags', [])
+        if name in flags:
+            flags.remove(name)
+        else:
+            flags.append(name)
 
 
 def set_scheduler(on):

@@ -56,6 +56,12 @@ def toggle(name):
     return redirect(url_for('control'))
 
 
+@app.route('/mode/flag/<name>', methods=['POST'])
+def toggle_flag(name):
+    state.toggle_flag(name)
+    return redirect(url_for('control'))
+
+
 @app.route('/window/<wid>', methods=['POST'])
 def set_window(wid):
     state.set_field(f'windows.{wid}', request.form['state'])

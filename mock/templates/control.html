@@ -132,6 +132,24 @@
 </section>
 
 <section>
+  <h2>System / uptime override</h2>
+  <p class="muted">
+    Default behaviour: <code>uptime_s</code> ticks from the mock process start.
+    Set a value here to pin <code>uptime_s</code> to a fixed number of seconds — useful for
+    verifying the dashboard's <code>Ns</code> / <code>Nm&nbsp;Ns</code> / <code>Nh&nbsp;Nm</code> / <code>Nd&nbsp;Nh&nbsp;Nm</code> buckets.
+    Examples: <code>59</code>, <code>1439</code> (23m 59s), <code>86340</code> (23h 59m), <code>101580</code> (1d 4h 23m).
+    Leave blank and Set to clear.
+  </p>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <input type="hidden" name="path" value="uptime_override_s">
+    <label>uptime_s</label>
+    <input type="number" name="value" min="0"
+           value="{{ state.uptime_override_s if state.uptime_override_s is not none else '' }}">
+    <button>Set (blank = live tick)</button>
+  </form>
+</section>
+
+<section>
   <h2>Mode</h2>
   <form method="post" action="{{ url_for('set_field') }}" class="inline">
     <label>Current</label>
@@ -143,7 +161,33 @@
     </select>
     <button>Set</button>
   </form>
-  <p class="muted">Editing the flags array is not implemented in v1; default is empty.</p>
+  <h3 style="margin-top:1em">mode.flags (toggle to add / remove from payload)</h3>
+  <p class="muted">
+    Flags map to badges in the dashboard's Mode tile. Red = alarm, yellow = warn, blue = info.
+    The first three are auto-suppressed when the matching mode pill is showing (WIND_OVERRIDE, WINDOW_CAL, MOTOR_ALARM).
+    The <code>__unknown__</code> button is for verifying TR-48 (unknown flags must silently drop).
+  </p>
+  {% set FLAGS = [
+    ('wind_override',      'alarm'),
+    ('motor_alarm',        'alarm'),
+    ('sensor_fault_temp',  'warn'),
+    ('sensor_fault_wind',  'warn'),
+    ('ota_in_progress',    'warn'),
+    ('calibrating',        'warn'),
+    ('net_backoff_active', 'warn'),
+    ('wind_protect_off',   'warn'),
+    ('humidity_ctrl_off',  'info'),
+    ('coredump_available', 'info'),
+    ('__unknown__',        'unknown'),
+  ] %}
+  {% for flag, kind in FLAGS %}
+    {% set on = flag in state.mode.flags %}
+    <form method="post" action="{{ url_for('toggle_flag', name=flag) }}" class="inline">
+      <button class="{{ 'on' if on else 'off' }}"
+              title="{{ kind }}"
+              >{{ flag }}: {{ 'ON' if on else 'OFF' }}</button>
+    </form>
+  {% endfor %}
 </section>
 
 </body>

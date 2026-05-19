@@ -7,6 +7,7 @@
   --green:      #4caf50;
   --red:        #f44336;
   --yellow:     #ff9800;
+  --blue:       #2196f3;
   --blue-light: #7ec8e3;
   --green-dark: #1f5132;
   --grey-muted: #5a6275;
@@ -161,7 +162,7 @@ body {
 .flags .badge { font-size: 10px; }
 .flag-warn  { background: var(--yellow);     color: #000; }
 .flag-alarm { background: var(--red);        color: #fff; }
-.flag-info  { background: var(--blue-light); color: #000; }
+.flag-info  { background: var(--blue);       color: #fff; }
 .flag-mute  { background: var(--grey-muted); color: #fff; }
 
 .windows-svg {

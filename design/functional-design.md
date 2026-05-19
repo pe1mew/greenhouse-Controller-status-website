@@ -245,25 +245,29 @@ The bar's color is independent of its fill and changes as age crosses the user-d
 
 The caption updates once per second so the countdown looks live, not jumpy. It reads:
 
-> Last update HH:MM:SS · interval Ns · age Ns
+> Last update YYYY-MM-DD HH:MM:SS · interval Ns · age &lt;adaptive&gt;
+
+The full date is included on the timestamp so the operator can tell at a glance whether a stale reading is from earlier today or from a previous day (e.g. after the controller has been offline overnight).
+
+The `age` field uses the same adaptive formatter as the System-tile uptime (`Ns` / `Nm Ns` / `Nh Nm` / `Nd Nh Nm`), so a controller that has been silent for days reads `age 7d 8h 21m` instead of `age 633674s`.
 
 ### 8.3 Sketch
 
 ```
-+---- Freshness ---------------------------------+
-|  [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░] green |   age = 1 × interval (75 % fill)
-|  Last update 14:30:22 · interval 30s · age 30s |
-+------------------------------------------------+
++---- Freshness --------------------------------------------+
+|  [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░] green            |   age = 1 × interval (75 % fill)
+|  Last update 2026-05-19 14:30:22 · interval 30s · age 30s |
++-----------------------------------------------------------+
 
-+---- Freshness ---------------------------------+
-|  [▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] amber |   age = 2.5 × interval (≈ 38 %)
-|  Last update 14:28:52 · interval 30s · age 75s |
-+------------------------------------------------+
++---- Freshness ------------------------------------------------+
+|  [▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] amber                |   age = 2.5 × interval (≈ 38 %)
+|  Last update 2026-05-19 14:28:52 · interval 30s · age 1m 15s |
++---------------------------------------------------------------+
 
-+---- Freshness -------------------------------------------+
-|  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] red   OFFLINE   |   age > 4 × interval
-|  Last update 14:25:00 · interval 30s · age 250s          |
-+----------------------------------------------------------+
++---- Freshness -----------------------------------------------------+
+|  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] red   OFFLINE             |   age > 4 × interval
+|  Last update 2026-05-12 01:37:23 · interval 30s · age 7d 8h 21m   |
++--------------------------------------------------------------------+
 ```
 
 ### 8.4 Placement

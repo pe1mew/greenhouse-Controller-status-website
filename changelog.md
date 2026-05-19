@@ -10,6 +10,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Implementation phases 0–8 of the [implementation plan](design/implementation-plan.md) are complete and the dashboard is deployed to a LAN test server. Phase 10 security pass walked through; a per-IP rate limiter and a layered no-index policy have since been added in preparation for a public-internet deployment. Phase 9 mobile QA in progress (operator-driven, iterative). Phase 12 (real ESP32 integration) deferred to a separate session.
 
+### Changed — Freshness tile caption: full date + adaptive age (2026-05-19)
+- `fmtClock(epoch)` in `httproot/assets/app.js` renamed to `fmtDateTime(epoch)` and extended to emit `YYYY-MM-DD HH:MM:SS` instead of `HH:MM:SS`. Rationale: when the controller has been offline overnight or longer, a bare clock time is ambiguous — the operator needs to see at a glance that the last reading is from a previous day.
+- `age` in the same caption is now formatted with the existing `fmtUptime()` so it adapts across the same `Ns` / `Nm Ns` / `Nh Nm` / `Nd Nh Nm` buckets as the System-tile uptime. The caption used to render `age 633674s` after a week-long outage; it now reads `age 7d 8h 21m`. The two adaptive fields share one formatter so they can't drift apart.
+- The format is fixed (no locale-sensitive variants) so the caption stays parseable across timezones / browsers.
+- Spec text updated to match in `design/functional-design.md` § 8.2 / § 8.3 (caption template + ASCII sketches) and `design/technical-spec.md` § 11.2 (`formatCaption` emit rules).
+- `fmtUptime()` confirmed against the buckets `Ns` / `Nm Ns` / `Nh Nm` / `Nd Nh Nm`; no code change needed (the May 10 `added uptime` commit already produces this format — e.g. `59s`, `23m 59s`, `23h 59m`, `1d 4h 23m`). If a deployment still shows raw seconds, redeploy `httproot/assets/app.js` and bust the browser cache.
+
+### Changed — Mode-tile badges aligned with firmware 2.0.0-a.6.35.x JSON contract (2026-05-19)
+- Updated `FLAG_CLASS` in `httproot/assets/app.js` to the 10-flag set documented in `../greenhouse-Controller/design/technical-spec-statusWebsite.md` § 9.4 / TR-47:
+  - **Reclassified**: `wind_override` warn → alarm; `sensor_fault_temp`, `sensor_fault_wind` alarm → warn; `ota_in_progress` info → warn.
+  - **Removed**: `sensor_fault_rh` (no longer emitted by the firmware; if it ever shows up TR-48 silently drops it).
+  - **New flags**: `net_backoff_active` (warn), `wind_protect_off` (warn), `humidity_ctrl_off` (info), `coredump_available` (info).
+- Added `FLAG_LABEL` lookup so badges render with human-readable text (`WIND`, `MOTOR ALARM`, `T/RH fault`, `Wind fault`, `OTA active`, `Calibrating`, `Net backoff`, `Wind protect off`, `Humidity ctrl off`, `Coredump available`) instead of the raw underscore identifiers. `FLAG_DESC` (tooltip) refreshed to match.
+- `renderMode()` now follows TR-48: a flag whose string is not in `FLAG_CLASS` is silently dropped (no `flag-mute` fallback, no console noise). Forward-compatible with future firmware that emits flags this dashboard hasn't been built for yet.
+- Added `STANDBY` to `MODE_CLASS` / `MODE_DESC` (mapped to the existing `mode-mute` styling). The five pill states the firmware can emit per § 3.4 are now all explicitly handled.
+- `httproot/assets/style.css`: added `--blue: #2196f3` to `:root`, and switched `.flag-info` from `var(--blue-light)` + black text to `var(--blue)` + white text per § 9.4. The pre-existing `--blue-light` stays in place — it's still used by the OPEN-window-tile fill.
+- **Mock**: `mode.flags` is now editable from the control panel. `mock/state.py` gains a `toggle_flag(name)` helper, `mock/app.py` exposes `/mode/flag/<name>`, and the `Mode` section of `mock/templates/control.html` renders a button per known flag (plus an `__unknown__` button used to exercise TR-48). The "Editing the flags array is not implemented in v1" placeholder has been removed.
+
+### Added — Mock controller: uptime override widget (2026-05-19)
+- `mock/state.py` gains a new `uptime_override_s` field (default `None`). When set to a non-negative integer, `build_payload()` emits that value as `system.uptime_s` instead of computing the live tick from `time.monotonic() - _STARTED_AT`. Clearing the field (blank in the form) reverts to live-tick behaviour.
+- `mock/templates/control.html` gains a new *System / uptime override* section so the operator can pin the value from the browser. Used to verify the dashboard's four `fmtUptime()` buckets in a single sitting (`59` → `59s`, `1439` → `23m 59s`, `86340` → `23h 59m`, `101580` → `1d 4h 23m`) instead of leaving the mock running for ~24 hours.
+
 ### Changed — Climate / System / Wind / Daytime / Mode tile UI iteration (2026-05-10)
 - **System tile**: removed `system.wifi_ip` from the rendered output (operationally noise on a LAN dashboard). Replaced the `wifi_rssi_dbm` numeric text with a horizontal signal-strength bar labelled **WiFi**, modelled on the freshness bar — linear map −90 dBm → 0 %, −30 dBm → 100 %, with green ≥ −54 dBm, yellow ≥ −72 dBm, red below. Added an **Uptime** row sourced from `system.uptime_s` (formatted as `1d 2h 3m` / `5h 12m` / `2m 3s` / `Ns`). NTP/RTC status kept. All three rows now stacked vertically and left-aligned. New CSS rules (`.sys-row`, `.sys-label`, `.sys-rssi-track`, `.sys-rssi-fill`) modelled on the existing freshness-bar pattern in `httproot/assets/style.css`. New JS helpers `fmtUptime()`, `rssiToPct()`, `rssiQuality()` in `httproot/assets/app.js`.
 - **Daytime tile** (was *Sun*): heading renamed for clarity. Internal id (`tile-sun`) and JS handles unchanged so wiring stays stable.

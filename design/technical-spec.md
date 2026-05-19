@@ -616,7 +616,7 @@ renderFreshness();   // initial render so the tile isn't blank before first fetc
 
 `formatCaption` emits:
 - "No data yet" if `lastPayload` is null or `received_at` is missing.
-- Otherwise `"Last update HH:MM:SS · interval Ns · age Ns"`. Append "(assumed)" after the interval value if `update_interval_s` was missing from the payload.
+- Otherwise `"Last update YYYY-MM-DD HH:MM:SS · interval Ns · age <adaptive>"`. Append "(assumed)" after the interval value if `update_interval_s` was missing from the payload. The full date keeps a stale-day timestamp unambiguous; `<adaptive>` uses the same `fmtUptime()` buckets as the System-tile uptime (`Ns` / `Nm Ns` / `Nh Nm` / `Nd Nh Nm`) so a multi-day-old reading reads `age 7d 8h 21m` instead of `age 633674s`.
 
 ### 11.3 No-data startup
 

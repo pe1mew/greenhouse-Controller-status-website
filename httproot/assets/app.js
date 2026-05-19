@@ -103,28 +103,54 @@ function renderWind(w) {
   dirStrongs[1].textContent = 'direction_deg' in w ? cardinalFromDeg(w.direction_deg) : '';
 }
 
+// Mirrors the firmware's emission set documented in
+// design/technical-spec-statusWebsite.md § 9.4 / TR-47. Each flag maps to a
+// CSS badge class: red = alarm/fault, yellow = warn/transient, blue = info.
+// Removing 'sensor_fault_rh' — no longer emitted by firmware 2.0.0-a.6.35+;
+// per TR-48, if it ever shows up it is silently dropped.
 const FLAG_CLASS = {
-  wind_override:     'flag-warn',
-  calibrating:       'flag-warn',
-  ota_in_progress:   'flag-info',
-  motor_alarm:       'flag-alarm',
-  sensor_fault_temp: 'flag-alarm',
-  sensor_fault_rh:   'flag-alarm',
-  sensor_fault_wind: 'flag-alarm',
+  wind_override:      'flag-alarm',
+  motor_alarm:        'flag-alarm',
+  sensor_fault_temp:  'flag-warn',
+  sensor_fault_wind:  'flag-warn',
+  ota_in_progress:    'flag-warn',
+  calibrating:        'flag-warn',
+  net_backoff_active: 'flag-warn',
+  wind_protect_off:   'flag-warn',
+  humidity_ctrl_off:  'flag-info',
+  coredump_available: 'flag-info',
+};
+
+// Human-readable badge text per spec § 9.4 FLAG_LABEL.
+const FLAG_LABEL = {
+  wind_override:      'WIND',
+  motor_alarm:        'MOTOR ALARM',
+  sensor_fault_temp:  'T/RH fault',
+  sensor_fault_wind:  'Wind fault',
+  ota_in_progress:    'OTA active',
+  calibrating:        'Calibrating',
+  net_backoff_active: 'Net backoff',
+  wind_protect_off:   'Wind protect off',
+  humidity_ctrl_off:  'Humidity ctrl off',
+  coredump_available: 'Coredump available',
 };
 
 const FLAG_DESC = {
-  wind_override:     'Wind speed exceeded the safety threshold; windows forced closed',
-  calibrating:       'Window position calibration in progress',
-  ota_in_progress:   'Firmware over-the-air update in progress',
-  motor_alarm:       'A window motor reported a fault',
-  sensor_fault_temp: 'Temperature sensor is not reporting valid data',
-  sensor_fault_rh:   'Humidity sensor is not reporting valid data',
-  sensor_fault_wind: 'Wind sensor is not reporting valid data',
+  wind_override:      'Wind speed exceeded the safety threshold; windows forced closed',
+  motor_alarm:        'A window motor reported a fault',
+  sensor_fault_temp:  'Temperature / RH sensor is not reporting valid data',
+  sensor_fault_wind:  'Wind sensor is not reporting valid data',
+  ota_in_progress:    'Firmware / asset over-the-air update in progress',
+  calibrating:        'Window position calibration in progress',
+  net_backoff_active: 'Network backoff: status POSTs paused after consecutive failures',
+  wind_protect_off:   'Operator disabled wind protection — windows will NOT close on high wind',
+  humidity_ctrl_off:  'Operator disabled humidity-driven control',
+  coredump_available: 'Panic dump waiting in flash; admin can retrieve via local GUI',
 };
 
 const MODE_CLASS = {
   AUTOMATIC:     'mode-ok',
+  STANDBY:       'mode-mute',
   WIND_OVERRIDE: 'mode-warn',
   WINDOW_CAL:    'mode-warn',
   MOTOR_ALARM:   'mode-alarm',
@@ -132,6 +158,7 @@ const MODE_CLASS = {
 
 const MODE_DESC = {
   AUTOMATIC:     'Normal automatic operation — windows controlled by climate rules',
+  STANDBY:       'Controller is in standby — no active control loop',
   WIND_OVERRIDE: 'High wind detected — windows forced closed for safety',
   WINDOW_CAL:    'Calibrating window positions — automatic control suspended',
   MOTOR_ALARM:   'Motor fault detected — manual intervention required',
@@ -162,9 +189,11 @@ function renderMode(m) {
     const dupe = MODE_FLAG_DUPE[m.current];
     for (const f of m.flags) {
       if (f === dupe) continue; // already represented by the mode pill
+      const cls = FLAG_CLASS[f];
+      if (!cls) continue;       // TR-48: unknown flag — silently drop
       const span = document.createElement('span');
-      span.className = 'badge ' + (FLAG_CLASS[f] || 'flag-mute');
-      span.textContent = f;
+      span.className = 'badge ' + cls;
+      span.textContent = FLAG_LABEL[f] || f;
       span.title = FLAG_DESC[f] || 'Status flag from the controller';
       flagsEl.appendChild(span);
     }
@@ -290,10 +319,11 @@ function currentAgeS() {
   return anchor.ageAtFetch + (performance.now() - anchor.fetchedAtMono) / 1000;
 }
 
-function fmtClock(epoch) {
+function fmtDateTime(epoch) {
   const d = new Date(epoch * 1000);
   const pad = n => String(n).padStart(2, '0');
-  return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+    + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
 }
 
 function renderFreshness() {
@@ -317,9 +347,9 @@ function renderFreshness() {
   if (!lastPayload || !lastPayload.received_at) {
     cap.textContent = 'No data yet';
   } else {
-    const last = fmtClock(lastPayload.received_at);
+    const last = fmtDateTime(lastPayload.received_at);
     const intLabel = interval + 's' + (assumed ? ' (assumed)' : '');
-    cap.textContent = 'Last update ' + last + ' · interval ' + intLabel + ' · age ' + Math.floor(age) + 's';
+    cap.textContent = 'Last update ' + last + ' · interval ' + intLabel + ' · age ' + fmtUptime(age);
   }
 
   setHidden('fresh-offline', age <= 4 * interval);
