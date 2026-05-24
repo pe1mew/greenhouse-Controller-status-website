@@ -56,6 +56,11 @@ greenhouse-Controller-status-website/
 │   ├── technical-spec.md           ← How it is built (TR-01..TR-42)
 │   ├── implementation-plan.md      ← Phase-by-phase plan + verification sign-off
 │   └── apiSpecification.md         ← Controller-side contract
+├── manual/                         ← End-user documentation
+│   ├── userManual.md               ← Dutch user manual (operator-facing)
+│   ├── userManual.pdf              ← PDF build artifact (16 pages)
+│   ├── md2pdf.py                   ← Markdown → PDF (Edge headless)
+│   └── images/                     ← Tile screenshots used in the manual
 ├── documentation/
 │   ├── webguiExample/              ← Reference web UI (theme + progress bar)
 │   └── phpAPIExample/              ← Reference PHP auth pattern
@@ -123,6 +128,9 @@ When you're ready to swap the mock for the real controller, see [design/apiSpeci
 | [design/technical-spec.md](design/technical-spec.md) | How it is built. Directory layout, endpoint code paths, storage model, frontend wiring, Apache hardening, TR-01 through TR-42. |
 | [design/implementation-plan.md](design/implementation-plan.md) | Twelve-phase plan with effort estimates, risks, and a verification sign-off snapshot from the test-server walk-through. |
 | [design/apiSpecification.md](design/apiSpecification.md) | The contract for the firmware engineer — endpoint signatures, JSON schema, retry policy, wire transcripts. |
+| [manual/userManual.md](manual/userManual.md) | **Dutch-language end-user manual** for the public status page. What each tile and badge means, troubleshooting reference, screenshots of every tile. Operator-facing, no schema or code. |
+| [manual/userManual.pdf](manual/userManual.pdf) | Print-ready PDF of the user manual (16 pages, A4). Built from `userManual.md` by `md2pdf.py`. |
+| [manual/md2pdf.py](manual/md2pdf.py) | Markdown → PDF converter (Edge headless via DevTools Protocol). Picks up version metadata from the markdown table, renumbers `Figuur #:` placeholders, injects intrinsic image dimensions, and stamps every page with a branded header/footer. Run: `python manual/md2pdf.py manual/userManual.md`. |
 | [tools/README.md](tools/README.md) | Deploy, first-time setup, permission normalisation. |
 | [mock/README.md](mock/README.md) | Run the Flask mock controller; scenario-to-FR cross-reference. |
 | [documentation/webguiExample/](documentation/webguiExample/) | Reference HTML/CSS/JS for theme variables and the live-fetch progress-bar pattern reused by the freshness tile. |
