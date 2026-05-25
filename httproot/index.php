@@ -110,7 +110,7 @@ header('X-Robots-Tag: noindex, nofollow');
 </div>
 
 <footer>
-  <span title="Controller firmware version">Greenhouse Controller &nbsp;&bull;&nbsp; v<span id="sys-fw">—</span></span>
+  <span>Greenhouse Controller &nbsp;&bull;&nbsp; <span title="Controller firmware version">v<span id="sys-fw">—</span></span> &nbsp;&bull;&nbsp; <span id="sys-unit" title="Greenhouse unit identifier (4-char hex derived from the WiFi-STA MAC)">—</span></span>
   <a href="https://github.com/pe1mew/-greenhouse-Controller-status-website"
      target="_blank" rel="noopener noreferrer">GitHub &nearr;</a>
 </footer>

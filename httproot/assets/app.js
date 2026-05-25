@@ -271,7 +271,8 @@ function renderSystem(s) {
   }
 
   setText('sys-uptime', 'uptime_s' in s ? fmtUptime(s.uptime_s) : '—');
-  setText('sys-fw',     s.fw_ver || '—');
+  setText('sys-fw',     s.fw_ver  || '—');
+  setText('sys-unit',   s.unit_id || '—');
 }
 
 const W_IDS = ['M1', 'M2', 'M3'];

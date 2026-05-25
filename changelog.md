@@ -10,6 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Implementation phases 0–8 of the [implementation plan](design/implementation-plan.md) are complete and the dashboard is deployed to a LAN test server. Phase 10 security pass walked through; a per-IP rate limiter and a layered no-index policy have since been added in preparation for a public-internet deployment. Phase 9 mobile QA in progress (operator-driven, iterative). Phase 12 (real ESP32 integration) deferred to a separate session.
 
+### Added — Footer now shows the greenhouse unit ID (TR-45) (2026-05-24)
+- `httproot/index.php` footer extended from `Greenhouse Controller · v<fw_ver>` to `Greenhouse Controller · v<fw_ver> · <unit_id>`. New `<span id="sys-unit">` carries the 4-character identifier; the existing `sys-fw` span and title attribute are unchanged. Closes the gap against TR-45 in the firmware-side `technical-spec-statusWebsite.md` § 15.9 (the spec called for the unit ID to appear next to the version so an operator can tell which physical unit the public dashboard belongs to).
+- `httproot/assets/app.js` `renderSystem()` now writes `system.unit_id` to `#sys-unit` alongside the existing `system.fw_ver` write. Falls back to `—` if missing, mirroring the existing `fw_ver` handling.
+- `mock/state.py` system defaults gain `'unit_id': '2344'` so the change is visible end-to-end against the mock without waiting for real firmware.
+- `design/functional-design.md` field table and `design/apiSpecification.md` `system` table updated to mention the new footer placement.
+- Follow-up: `manual/images/userManualFooter.png` (used as Figuur 6 in the Dutch user manual) still shows the old two-segment footer; re-capture after the next deploy if you want the manual screenshot to match the live page.
+
 ### Changed — Freshness tile caption: full date + adaptive age (2026-05-19)
 - `fmtClock(epoch)` in `httproot/assets/app.js` renamed to `fmtDateTime(epoch)` and extended to emit `YYYY-MM-DD HH:MM:SS` instead of `HH:MM:SS`. Rationale: when the controller has been offline overnight or longer, a bare clock time is ambiguous — the operator needs to see at a glance that the last reading is from a previous day.
 - `age` in the same caption is now formatted with the existing `fmtUptime()` so it adapts across the same `Ns` / `Nm Ns` / `Nh Nm` / `Nd Nh Nm` buckets as the System-tile uptime. The caption used to render `age 633674s` after a week-long outage; it now reads `age 7d 8h 21m`. The two adaptive fields share one formatter so they can't drift apart.

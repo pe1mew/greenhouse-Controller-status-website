@@ -531,7 +531,8 @@ The controller decides which top-level objects to include. A missing top-level o
 | `system.ntp_synced` | boolean | — | System (NTP / RTC status row) |
 | `system.wifi_ip` | string | dotted decimal | accepted; not rendered since 2026-05-10 |
 | `system.wifi_rssi_dbm` | integer | dBm | System (rendered as a horizontal "WiFi" signal-strength bar) |
-| `system.fw_ver` | string | semver-ish | Footer (not on the system tile) |
+| `system.fw_ver` | string | semver-ish | Footer (not on the system tile), shown as `Greenhouse Controller · v<fw_ver> · <unit_id>` |
+| `system.unit_id` | string | 4-char hex | Footer, after the version (TR-45). Identifies which physical unit the data belongs to. |
 | `system.asset_version` | string | semver-ish | accepted; not rendered |
 | `system.uptime_s` | integer | s | System (uptime row, formatted) |
 | `system.ts_unix` / `time_iso` / `eg1` | various | — | accepted; not rendered |

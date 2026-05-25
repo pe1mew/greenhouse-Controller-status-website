@@ -383,7 +383,8 @@ Tile shows iff this object is present.
 | `ntp_synced` | boolean | — | Shown as "NTP ok" / "NTP pending". |
 | `wifi_ip` | string | dotted decimal IPv4 | Accepted but **not rendered** since 2026-05-10 (operationally noise on a LAN dashboard). Controller still sends it for API compatibility. |
 | `wifi_rssi_dbm` | integer | dBm | Typically negative. Rendered as a horizontal signal-strength bar labelled "WiFi" (linear map −90 → 0 %, −30 → 100 %, green ≥ −54, yellow ≥ −72, red below). The dBm value appears in the bar's hover tooltip. |
-| `fw_ver` | string | semver-ish | Shown in the dashboard footer (not in the system tile itself). |
+| `fw_ver` | string | semver-ish | Shown in the dashboard footer (not in the system tile itself), as `Greenhouse Controller · v<fw_ver> · <unit_id>`. |
+| `unit_id` | string | 4-char hex | Shown in the dashboard footer after `fw_ver` (TR-45). 4-character identifier derived from the last 2 bytes of the WiFi-STA MAC, matching the value on the LCD, in the AP SSID, and in the local-GUI footer. |
 | `asset_version` | string | semver-ish | Web-assets version from `/manifest.json`. Equal to `fw_ver` in normal operation; differs only after an incomplete OTA. Currently informational; not rendered. |
 | `uptime_s` | integer | seconds since boot | Rendered in the system tile as `Ns` / `Nm Ns` / `Nh Nm` / `Nd Nh Nm`, picking the most compact representation. |
 | `ts_unix` | integer | Unix epoch (seconds, UTC) | Controller-reported wall-clock. Not rendered (the server's `received_at` is authoritative for freshness). |
