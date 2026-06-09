@@ -390,6 +390,9 @@ Tile shows iff this object is present.
 | `ts_unix` | integer | Unix epoch (seconds, UTC) | Controller-reported wall-clock. Not rendered (the server's `received_at` is authoritative for freshness). |
 | `time_iso` | string | ISO-8601 local | Human-readable mirror of `ts_unix`. Not rendered. |
 | `eg1` | integer | bitmask | Raw EG1 register for debugging. Not rendered. The dashboard reads decoded flag names from `mode.flags`, not from this bitmask. |
+| `sd_mounted` | boolean | — | Whether the controller's SD card is currently mounted. When `false`, the dashboard synthesises a `sd_not_mounted` client-side flag and renders an amber **SD-card** badge in the Mode tile (event logs and persisted state are unavailable in this state). |
+| `sd_free_mb` | integer | MiB | Free space on the SD card. Currently informational; not rendered. |
+| `sd_size_mb` | integer | MiB | Total SD card size. Currently informational; not rendered. |
 
 The system tile renders three vertically stacked, left-aligned rows: the WiFi signal-strength bar, NTP/RTC status, and uptime. IP address, dBm number, firmware version, and the various clock fields are intentionally not on the tile (firmware version is in the footer; the others are reserved for future diagnostics).
 

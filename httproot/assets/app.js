@@ -119,6 +119,10 @@ const FLAG_CLASS = {
   wind_protect_off:   'flag-warn',
   humidity_ctrl_off:  'flag-info',
   coredump_available: 'flag-info',
+  // Synthetic flag derived client-side from system.sd_mounted === false
+  // (see renderMode below). If the firmware ever emits this string directly
+  // in mode.flags, the dedup in renderMode keeps it from being shown twice.
+  sd_not_mounted:     'flag-warn',
 };
 
 // Human-readable badge text per spec § 9.4 FLAG_LABEL.
@@ -133,6 +137,7 @@ const FLAG_LABEL = {
   wind_protect_off:   'Wind protect off',
   humidity_ctrl_off:  'Humidity ctrl off',
   coredump_available: 'Coredump available',
+  sd_not_mounted:     'SD-card',
 };
 
 const FLAG_DESC = {
@@ -146,6 +151,7 @@ const FLAG_DESC = {
   wind_protect_off:   'Operator disabled wind protection — windows will NOT close on high wind',
   humidity_ctrl_off:  'Operator disabled humidity-driven control',
   coredump_available: 'Panic dump waiting in flash; admin can retrieve via local GUI',
+  sd_not_mounted:     'SD card is not mounted — event logs and persisted state unavailable',
 };
 
 const MODE_CLASS = {
@@ -173,7 +179,7 @@ const MODE_FLAG_DUPE = {
   MOTOR_ALARM:   'motor_alarm',
 };
 
-function renderMode(m) {
+function renderMode(m, sys) {
   const tile = $('tile-mode');
   if (!m) { tile.hidden = true; return; }
   tile.hidden = false;
@@ -183,20 +189,27 @@ function renderMode(m) {
   pill.className = 'pill ' + (m.current && MODE_CLASS[m.current] ? MODE_CLASS[m.current] : 'mode-mute');
   pill.title = MODE_DESC[m.current] || 'Operating mode reported by the controller';
 
+  // Start with the controller-emitted flag list, then synthesise extra badges
+  // from system-level state that should also surface in the mode tile. Today
+  // that's just `sd_not_mounted` derived from system.sd_mounted === false;
+  // future system-derived flags can be appended in the same way.
+  const flags = Array.isArray(m.flags) ? m.flags.slice() : [];
+  if (sys && sys.sd_mounted === false && !flags.includes('sd_not_mounted')) {
+    flags.push('sd_not_mounted');
+  }
+
   const flagsEl = $('md-flags');
   clearChildren(flagsEl);
-  if (Array.isArray(m.flags)) {
-    const dupe = MODE_FLAG_DUPE[m.current];
-    for (const f of m.flags) {
-      if (f === dupe) continue; // already represented by the mode pill
-      const cls = FLAG_CLASS[f];
-      if (!cls) continue;       // TR-48: unknown flag — silently drop
-      const span = document.createElement('span');
-      span.className = 'badge ' + cls;
-      span.textContent = FLAG_LABEL[f] || f;
-      span.title = FLAG_DESC[f] || 'Status flag from the controller';
-      flagsEl.appendChild(span);
-    }
+  const dupe = MODE_FLAG_DUPE[m.current];
+  for (const f of flags) {
+    if (f === dupe) continue; // already represented by the mode pill
+    const cls = FLAG_CLASS[f];
+    if (!cls) continue;       // TR-48: unknown flag — silently drop
+    const span = document.createElement('span');
+    span.className = 'badge ' + cls;
+    span.textContent = FLAG_LABEL[f] || f;
+    span.title = FLAG_DESC[f] || 'Status flag from the controller';
+    flagsEl.appendChild(span);
   }
 }
 
@@ -368,7 +381,7 @@ function render(s) {
   renderClimate(s.climate);
   renderWind(s.wind);
   renderWindows(s.windows);
-  renderMode(s.mode);
+  renderMode(s.mode, s.system);
   renderSun(s.sun);
   renderSystem(s.system);
   renderFreshness();

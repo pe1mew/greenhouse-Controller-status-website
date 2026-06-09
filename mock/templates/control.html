@@ -147,6 +147,19 @@
            value="{{ state.uptime_override_s if state.uptime_override_s is not none else '' }}">
     <button>Set (blank = live tick)</button>
   </form>
+
+  <h3 style="margin-top:1em">system.sd_mounted</h3>
+  <p class="muted">
+    Toggles the <code>sd_mounted</code> field. When <code>false</code> the dashboard renders
+    an amber <strong>SD-card</strong> badge in the Mode tile (synthesised client-side).
+  </p>
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <input type="hidden" name="path" value="system.sd_mounted">
+    <input type="hidden" name="value" value="{{ 'false' if state.system.sd_mounted else 'true' }}">
+    <button class="{{ 'on' if state.system.sd_mounted else 'off' }}">
+      sd_mounted: {{ 'ON' if state.system.sd_mounted else 'OFF' }} — click to toggle
+    </button>
+  </form>
 </section>
 
 <section>

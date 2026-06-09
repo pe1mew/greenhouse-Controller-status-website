@@ -533,6 +533,7 @@ The controller decides which top-level objects to include. A missing top-level o
 | `system.wifi_rssi_dbm` | integer | dBm | System (rendered as a horizontal "WiFi" signal-strength bar) |
 | `system.fw_ver` | string | semver-ish | Footer (not on the system tile), shown as `Greenhouse Controller · v<fw_ver> · <unit_id>` |
 | `system.unit_id` | string | 4-char hex | Footer, after the version (TR-45). Identifies which physical unit the data belongs to. |
+| `system.sd_mounted` | boolean | — | Not rendered directly. When `false`, the dashboard adds a synthetic `sd_not_mounted` entry to the mode-flag list, producing an amber **SD-card** badge in the Mode tile. |
 | `system.asset_version` | string | semver-ish | accepted; not rendered |
 | `system.uptime_s` | integer | s | System (uptime row, formatted) |
 | `system.ts_unix` / `time_iso` / `eg1` | various | — | accepted; not rendered |

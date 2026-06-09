@@ -21,7 +21,8 @@ DEFAULTS = {
     'sun':      {'is_daytime': True, 'sunrise_min': 360, 'sunset_min': 1260},
     'system':   {'ntp_synced': True, 'wifi_ip': '192.168.1.100',
                  'wifi_rssi_dbm': -45, 'fw_ver': '1.17.0',
-                 'unit_id': '2344'},
+                 'unit_id': '2344', 'sd_mounted': True,
+                 'sd_free_mb': 1875, 'sd_size_mb': 1880},
     'scheduler_running': True,
     'last_response': None,
     # When set to a non-negative integer, build_payload() emits this value as
