@@ -104,54 +104,83 @@ function renderWind(w) {
 }
 
 // Mirrors the firmware's emission set documented in
-// design/technical-spec-statusWebsite.md § 9.4 / TR-47. Each flag maps to a
-// CSS badge class: red = alarm/fault, yellow = warn/transient, blue = info.
-// Removing 'sensor_fault_rh' — no longer emitted by firmware 2.0.0-a.6.35+;
-// per TR-48, if it ever shows up it is silently dropped.
+// design/technical-spec-statusWebsite.md § 9.4 (contract 2.0, fw up to 2.14.0).
+// Each flag maps to a CSS badge class: red = alarm/fault, yellow = warn /
+// transient, blue = info. TR-47 / TR-53. Unknown flag strings are silently
+// dropped by renderMode() per TR-48.
+//
+// net_backoff_active is defined in the contract but never emitted as of
+// 2.14.0 (breaker not wired, gh#18 Phase 1 returns false). Keep the row so
+// enabling the breaker later is a firmware-only change.
 const FLAG_CLASS = {
-  wind_override:      'flag-alarm',
-  motor_alarm:        'flag-alarm',
-  sensor_fault_temp:  'flag-warn',
-  sensor_fault_wind:  'flag-warn',
-  ota_in_progress:    'flag-warn',
-  calibrating:        'flag-warn',
-  net_backoff_active: 'flag-warn',
-  wind_protect_off:   'flag-warn',
-  humidity_ctrl_off:  'flag-info',
-  coredump_available: 'flag-info',
+  // RED — alarm/fault. Operator attention required.
+  wind_override:         'flag-alarm',
+  motor_alarm:           'flag-alarm',
+
+  // YELLOW — warn / transient.
+  sensor_fault_temp:     'flag-warn',
+  sensor_fault_wind:     'flag-warn',
+  sensor_fault_position: 'flag-warn',  // 2.7.1 — M3 position sensor unusable; M3 falls back to timed
+  m3_not_confirmed:      'flag-warn',  // 2.10.0 — last M3 drive did not reach the aimed end sensor
+  m3_travel_short:       'flag-warn',  // 2.10.0 — measured traverse under half the configured travel time
+  m3_travel_long:        'flag-warn',  // 2.10.0 — measured traverse longer than the configured travel time
+  ota_in_progress:       'flag-warn',
+  calibrating:           'flag-warn',
+  standby:               'flag-warn',  // operator paused the controller (mode.current is STANDBY too — deduped)
+  net_backoff_active:    'flag-warn',
+  wind_protect_off:      'flag-warn',
+
+  // BLUE — informational (operator-configured state, not a fault).
+  humidity_ctrl_off:     'flag-info',
+  coredump_available:    'flag-info',
+  rota_update_pending:   'flag-info',  // 2.2.2 — update downloaded, waiting for its apply window
+
   // Synthetic flag derived client-side from system.sd_mounted === false
   // (see renderMode below). If the firmware ever emits this string directly
   // in mode.flags, the dedup in renderMode keeps it from being shown twice.
-  sd_not_mounted:     'flag-warn',
+  sd_not_mounted:        'flag-warn',
 };
 
-// Human-readable badge text per spec § 9.4 FLAG_LABEL.
+// Human-readable badge text — kept in sync with the controller's own GUI so
+// an operator sees the same words on both surfaces. Per spec § 9.4 FLAG_LABEL.
 const FLAG_LABEL = {
-  wind_override:      'WIND',
-  motor_alarm:        'MOTOR ALARM',
-  sensor_fault_temp:  'T/RH fault',
-  sensor_fault_wind:  'Wind fault',
-  ota_in_progress:    'OTA active',
-  calibrating:        'Calibrating',
-  net_backoff_active: 'Net backoff',
-  wind_protect_off:   'Wind protect off',
-  humidity_ctrl_off:  'Humidity ctrl off',
-  coredump_available: 'Coredump available',
-  sd_not_mounted:     'SD-card',
+  wind_override:         'WIND',
+  motor_alarm:           'MOTOR ALARM',
+  sensor_fault_temp:     'T/RH fault',
+  sensor_fault_wind:     'Wind fault',
+  sensor_fault_position: 'Window sensor fault',
+  m3_not_confirmed:      'M3 not confirmed',
+  m3_travel_short:       'M3 travel time too short',
+  m3_travel_long:        'M3 travel time too long',
+  ota_in_progress:       'OTA active',
+  calibrating:           'Calibrating',
+  standby:               'Standby',
+  net_backoff_active:    'Net backoff',
+  wind_protect_off:      'Wind protect off',
+  humidity_ctrl_off:     'Humidity ctrl off',
+  coredump_available:    'Coredump available',
+  rota_update_pending:   'Update pending',
+  sd_not_mounted:        'SD-card',
 };
 
 const FLAG_DESC = {
-  wind_override:      'Wind speed exceeded the safety threshold; windows forced closed',
-  motor_alarm:        'A window motor reported a fault',
-  sensor_fault_temp:  'Temperature / RH sensor is not reporting valid data',
-  sensor_fault_wind:  'Wind sensor is not reporting valid data',
-  ota_in_progress:    'Firmware / asset over-the-air update in progress',
-  calibrating:        'Window position calibration in progress',
-  net_backoff_active: 'Network backoff: status POSTs paused after consecutive failures',
-  wind_protect_off:   'Operator disabled wind protection — windows will NOT close on high wind',
-  humidity_ctrl_off:  'Operator disabled humidity-driven control',
-  coredump_available: 'Panic dump waiting in flash; admin can retrieve via local GUI',
-  sd_not_mounted:     'SD card is not mounted — event logs and persisted state unavailable',
+  wind_override:         'Wind speed exceeded the safety threshold; windows forced closed',
+  motor_alarm:           'A window motor reported a fault',
+  sensor_fault_temp:     'Temperature / RH sensor is not reporting valid data',
+  sensor_fault_wind:     'Wind sensor is not reporting valid data',
+  sensor_fault_position: 'M3 position sensor unusable; M3 falls back to timed control',
+  m3_not_confirmed:      'M3 last drive did not reach the aimed end sensor',
+  m3_travel_short:       'M3 measured traverse under half the configured travel time',
+  m3_travel_long:        'M3 measured traverse longer than the configured travel time',
+  ota_in_progress:       'Firmware / asset over-the-air update in progress',
+  calibrating:           'Window position calibration in progress',
+  standby:               'Operator paused the controller — no active control loop',
+  net_backoff_active:    'Network backoff: status POSTs paused after consecutive failures',
+  wind_protect_off:      'Operator disabled wind protection — windows will NOT close on high wind',
+  humidity_ctrl_off:     'Operator disabled humidity-driven control',
+  coredump_available:    'Panic dump waiting in flash; admin can retrieve via local GUI',
+  rota_update_pending:   'Update downloaded; waiting for its apply window',
+  sd_not_mounted:        'SD card is not mounted — event logs and persisted state unavailable',
 };
 
 const MODE_CLASS = {
@@ -177,6 +206,7 @@ const MODE_FLAG_DUPE = {
   WIND_OVERRIDE: 'wind_override',
   WINDOW_CAL:    'calibrating',
   MOTOR_ALARM:   'motor_alarm',
+  STANDBY:       'standby',           // 2.x — pill and flag both surface the same state
 };
 
 function renderMode(m, sys) {
@@ -291,32 +321,62 @@ function renderSystem(s) {
 const W_IDS = ['M1', 'M2', 'M3'];
 const COLOR = {
   OPEN:         'var(--blue-light)',
+  PART_OPEN:    'var(--blue-light)',   // 2.12.0 — normal state, drawn as open (label carries the %)
   MOVING_OPEN:  'var(--yellow)',
   MOVING_CLOSE: 'var(--yellow)',
   CLOSED:       'var(--green-dark)',
   UNKNOWN:      'var(--grey-muted)',
 };
 function shortState(s) {
-  return ({ MOVING_OPEN: 'MOV OPEN', MOVING_CLOSE: 'MOV CLOSE' }[s]) || s || 'UNKNOWN';
+  return ({ MOVING_OPEN: 'MOV OPEN', MOVING_CLOSE: 'MOV CLOSE', PART_OPEN: 'PART' }[s]) || s || 'UNKNOWN';
 }
 function textColorFor(state) {
-  // Light-blue (OPEN) background needs dark text for legibility.
-  return state === 'OPEN' ? '#000' : 'var(--fg)';
+  // Light-blue (OPEN / PART_OPEN) background needs dark text for legibility.
+  return (state === 'OPEN' || state === 'PART_OPEN') ? '#000' : 'var(--fg)';
 }
+
+// M3 carries its opening as tenths-of-percent when a position sensor is
+// fitted and trusted (2.7.1). Firmware does NOT clamp — a parked open
+// window reads ~113 %. Clamp for display. Missing key returns '' (must be
+// distinguishable from "0 %").
+function m3Percent(windows) {
+  const p = windows && windows.M3_percent_x10;
+  if (typeof p !== 'number' || !isFinite(p)) return '';
+  return ' ' + Math.round(Math.max(0, Math.min(1000, p)) / 10) + '%';
+}
+
+// M3 control-law info (2.12.0 / 2.13.0) appended to the hover title when
+// present. Format: " — LINEAR (setting, ok)". Empty when the block has no
+// M3_ctrl_mode (e.g. controller with no position sensor pre-2.12).
+function m3CtrlLaw(windows) {
+  if (!windows || !windows.M3_ctrl_mode) return '';
+  const qual = [];
+  if (windows.M3_ctrl_reason) qual.push(windows.M3_ctrl_reason);
+  if (windows.M3_pos_gate)    qual.push(windows.M3_pos_gate);
+  return ' — ' + windows.M3_ctrl_mode + (qual.length ? ' (' + qual.join(', ') + ')' : '');
+}
+
 function renderWindows(windows) {
   const tile = $('tile-windows');
   if (!windows) { tile.hidden = true; return; }
   tile.hidden = false;
 
   for (const id of W_IDS) {
-    const state = windows[id] || 'UNKNOWN';
-    const fill  = (state in COLOR) ? COLOR[state] : COLOR.UNKNOWN;
-    const lo = id.toLowerCase();
+    // Preserve the raw state string — an unknown value (a state added after
+    // this dashboard was built) must render as its raw text with a neutral
+    // fill, never silently as UNKNOWN. See §3.4 stability guarantee (widened
+    // in contract 2.0 to cover unknown values of known keys, not only unknown
+    // keys). TR-52.
+    const raw   = windows[id] || 'UNKNOWN';
+    const fill  = COLOR[raw] || COLOR.UNKNOWN;
+    const lo    = id.toLowerCase();
     $('rect-'  + lo).setAttribute('fill', fill);
-    const lbl  = $('lbl-' + lo);
-    lbl.setAttribute('fill', textColorFor(state));
-    lbl.textContent = id + ' ' + cfg.windowNames[id] + ' ' + shortState(state);
-    $('title-' + lo).textContent = id + ' ' + cfg.windowNames[id] + ': ' + state;
+    const lbl   = $('lbl-' + lo);
+    lbl.setAttribute('fill', textColorFor(raw));
+    const pct   = (id === 'M3') ? m3Percent(windows) : '';
+    lbl.textContent = id + ' ' + cfg.windowNames[id] + ' ' + shortState(raw) + pct;
+    const law   = (id === 'M3') ? m3CtrlLaw(windows) : '';
+    $('title-' + lo).textContent = id + ' ' + cfg.windowNames[id] + ': ' + raw + law;
   }
 }
 

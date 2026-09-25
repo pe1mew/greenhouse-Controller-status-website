@@ -164,3 +164,19 @@ sudo apache2ctl configtest && sudo systemctl reload apache2
 ```
 
 Then re-run the verification probes from technical-spec.md § 14.1.
+
+## Deploying behind nginx instead of Apache
+
+`tools/deploy.ps1` only uploads files — it doesn't touch the web server's
+own config, so it works the same against an nginx host. But nginx does
+**not** read `.htaccess`, so the per-directory rules in `httproot/data/`
+and `httproot/log/logs/` have no effect, and nginx's default
+`client_max_body_size 1m` is below the firmware's log-file size cap.
+
+Symptom on the controller side: `log-upload fail with HTTP 413
+(Payload Too Large)` on the first real log upload.
+
+Fix is server-side, not in this repo. See [`design/technical-spec.md` § 13.4–13.6](../design/technical-spec.md#13-web-server-configuration) for the
+exact `client_max_body_size`, `post_max_size`, and `location` block
+recipes (the nginx equivalents of the `data/.htaccess` deny and the
+`log/logs/.htaccess` filename whitelist).

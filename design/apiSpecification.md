@@ -313,18 +313,25 @@ Tile shows iff this object is present.
 | `M1` | enum string | optional — bar shows UNKNOWN if absent |
 | `M2` | enum string | optional — bar shows UNKNOWN if absent |
 | `M3` | enum string | optional — bar shows UNKNOWN if absent |
+| `M3_percent_x10` | integer, 0.1 % | optional — M3 only, when a position sensor is fitted and trusted (fw 2.7.1+). Dashboard appends `<N>%` to the M3 label, clamped to 0–1000. Absent, not zero, when no sensor is fitted. |
+| `M3_mm_x10` | integer, 0.1 mm | optional — M3 opening in millimetres. Accepted; not rendered. |
+| `M3_at_end_sensor` | boolean | optional — accepted; not rendered. |
+| `M3_ctrl_mode` | enum `TIMED` \| `LINEAR` | optional — the law in force (fw 2.12.0+). Appended to the M3 hover-title when present. |
+| `M3_ctrl_reason` | enum `setting` \| `no_position` \| `held_down` \| `resumed` | optional — why the law in force is what it is (fw 2.13.0+). Joined into the hover-title. |
+| `M3_pos_gate` | enum `ok` \| `probing` \| `no_sensor` \| `device_fault` \| `end_sensors` \| `not_fitted` \| `bench_build` | optional — the controller's assessment of the position sensor (fw 2.13.0+). Joined into the hover-title. |
 
-**State vocabulary** — the controller MUST send exactly one of these strings (or omit the key, which is treated as UNKNOWN):
+**State vocabulary** — the controller SHOULD send one of these strings (or omit the key, which is treated as UNKNOWN):
 
 | State | Meaning | Bar colour on dashboard |
 |---|---|---|
 | `OPEN` | Travel timer expired in the open direction | light blue, black text |
+| `PART_OPEN` | M3 stopped at a measured opening under linear control (fw 2.12.0+) | light blue, black text — normal state, not a fault |
 | `MOVING_OPEN` | Relay energised in the open direction | amber |
 | `MOVING_CLOSE` | Relay energised in the close direction | amber |
 | `CLOSED` | At the close end-switch | dark green |
 | `UNKNOWN` | Position not yet established (before CLOSE_ALL calibration) | muted grey |
 
-Any other string is treated as UNKNOWN by the dashboard, but you should not rely on that — send canonical values.
+Contract 2.0 widens the field-stability guarantee: an unknown value of a known key (a state added by a future firmware) renders **with its raw text** in a neutral colour, never as UNKNOWN and never as a fault. Send canonical values so operators see the same words on the dashboard and in the local GUI, but a new state string does not require a dashboard release to be operationally safe.
 
 ### 6.6 `mode` (optional)
 

@@ -10,6 +10,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Implementation phases 0–8 of the [implementation plan](design/implementation-plan.md) are complete and the dashboard is deployed to a LAN test server. Phase 10 security pass walked through; a per-IP rate limiter and a layered no-index policy have since been added in preparation for a public-internet deployment. Phase 9 mobile QA in progress (operator-driven, iterative). Phase 12 (real ESP32 integration) deferred to a separate session.
 
+### Changed — Status page aligned with firmware contract 2.0 (fw up to 2.14.0) (2026-09-25)
+
+Reference: `design/plan-fw-contract-2.0-update.md`. Phase 3.2 (heap row) and Phase 3.3 (bus tile) deferred by operator decision.
+
+**Windows tile — `httproot/assets/app.js`, `renderWindows()` cluster:**
+- Added `PART_OPEN` (fw 2.12.0) to the `COLOR` map — light-blue fill like `OPEN`. This was the one visible regression against contract 2.0: any fleet member on ≥ 2.12 stopping M3 part-way was drawn as UNKNOWN grey. TR-50.
+- `shortState('PART_OPEN') → 'PART'`. `textColorFor` returns black on `PART_OPEN` too.
+- New `m3Percent(windows)` helper appends the clamped percentage (`M3_percent_x10` read as 0.1 %, clamped to 0..1000, rendered as `<N>%`) to the M3 label when the key is present. Missing key → no percentage — distinguishable from "0 %". TR-51.
+- New `m3CtrlLaw(windows)` helper appends `— <mode> (<reason>, <gate>)` from `M3_ctrl_mode` / `M3_ctrl_reason` / `M3_pos_gate` to the M3 hover-title. TR-56.
+- `renderWindows()` preserves the raw payload state string through the label and title (never collapses an unknown value to `'UNKNOWN'`). Widened stability guarantee per contract 2.0 § 3.4. TR-52.
+
+**Mode-tile badges — same file, `FLAG_CLASS` / `FLAG_LABEL` / `FLAG_DESC`:**
+- Six new flag strings (fw 2.7.1 → 2.12.0) added and grouped by class: `standby` (warn), `rota_update_pending` (info), `sensor_fault_position` (warn), `m3_not_confirmed` (warn), `m3_travel_short` (warn), `m3_travel_long` (warn). Labels straight from the firmware-side spec § 9.4 so the dashboard word-matches the controller's own GUI. TR-47 (updated) + TR-53.
+- `MODE_FLAG_DUPE` gains `STANDBY: 'standby'` so the pill and the flag don't double up when both are present.
+- `net_backoff_active` retained even though § 9.4 notes it is defined-but-never-emitted-yet — enabling the breaker later is then a firmware-only change.
+
+**Mock (`mock/state.py`, `mock/templates/control.html`):**
+- Windows dropdown gains `PART_OPEN`.
+- New M3 control-law block: number input for `M3_percent_x10` (0–1200 exercises the >100 % overshoot mentioned in the contract), a `M3_sensor_fitted` on/off toggle that drops the position-sensor keys entirely (emulates a controller with no sensor — the "absent, not zero" branch of TR-51), and dropdowns for `M3_ctrl_mode` / `M3_ctrl_reason` / `M3_pos_gate`.
+- Flag-toggle catalogue grows to sixteen buttons + `__unknown__`. Blurb updated to note the four-way dedup (`STANDBY` added) and that `net_backoff_active` is a contract-only flag today.
+
+**Docs:**
+- `design/functional-design.md` field table gains rows for `windows.PART_OPEN`, `M3_percent_x10`, `M3_ctrl_mode` / `M3_ctrl_reason` / `M3_pos_gate`. State vocabulary block extended with `PART_OPEN` and a note on the widened stability guarantee.
+- `design/apiSpecification.md` § 6 windows table gains rows for the M3 control-law and position keys and for `PART_OPEN`; the state-vocabulary table lists `PART_OPEN` too and explains the widened contract-2.0 guarantee (unknown values of known keys render neutrally with raw text).
+- `design/technical-spec.md` gains a § 9.4 pointer at the authoritative firmware-side catalogue, with the sixteen contract-2.0 strings listed by severity class and the four-way dedup rule documented.
+- `manual/userManual.md` § 3.4 (Ramen) gains a `PART_OPEN` row plus a note that an unknown state renders with its raw text. § 3.5 (Modus) badge table grows from ten to sixteen entries and the dedup blurb mentions the STANDBY case.
+- `changelog.md`: this entry.
+
+**Deliberately not done** (per plan § "Deferred by operator decision"):
+- **Phase 3.2** — no System-tile heap row. `heap_free_kb` / `heap_min_kb` / `heap_largest_kb` are received by `view.php` and stored in `status.json` but not consumed by `app.js`. TR-55 (never treat `heap_min_kb` as available memory) is trivially satisfied.
+- **Phase 3.3** — no `bus` tile. The top-level `bus` array is stored but not consumed. TR-54 (absence must not error) is met because the field is never referenced.
+
+### Added — nginx deployment notes (2026-06-09)
+- Real-world finding: deploying behind nginx instead of Apache fails on the first real log upload with `HTTP 413 (Payload Too Large)`. nginx's default `client_max_body_size` is 1 MiB; the firmware's per-file log limit (per `GH_LOG_MAX_BYTES`) is 5 MiB. The 413 fires before `api.php` ever runs, so the dashboard's own size handling never gets a chance.
+- `design/technical-spec.md` § 13 renamed from "Apache configuration (`.htaccess`)" to "Web-server configuration". § 13.1–13.3 now explicitly labelled as Apache. Three new subsections added:
+  - **§ 13.4 nginx — body-size limits for log uploads.** `client_max_body_size 10m;` in nginx + `post_max_size`/`upload_max_filesize = 10M` in `php.ini`, with a curl probe to verify.
+  - **§ 13.5 nginx — equivalent of the `.htaccess` hardening.** Full server-block example covering PHP-FPM hand-off, the `data/` deny (TR-17), and the `log/logs/` filename whitelist + `Content-Disposition: attachment` (TR-18, TR-19).
+  - **§ 13.6 nginx — optional Basic Auth on `view.php`.** Parallel of § 13.3 for Apache.
+- `tools/README.md` gains a "Deploying behind nginx instead of Apache" subsection pointing at § 13.4–13.6 so the operator can find the recipes from the deploy doc.
+- TOC entry for § 13 updated to call out both server flavours and the 413 trap.
+
 ### Added — Mode tile: amber SD-card badge when `system.sd_mounted` is false (2026-06-09)
 - The firmware now emits `sd_mounted` (boolean), `sd_free_mb`, and `sd_size_mb` in the `system` block (verified against `https://pe1mew.nl/hbwv/data/status.json`, firmware 2.0.3). When `sd_mounted === false` the dashboard renders an amber **SD-card** badge in the Mode tile so an operator can see at a glance that event logs / persisted state are unavailable.
 - Implementation: the badge is **synthesised client-side** rather than driven from `mode.flags[]`. `renderMode()` now also accepts the `system` block; if `sd_mounted === false` and `sd_not_mounted` is not already in `mode.flags`, it is appended to the local flag-render list. The badge then flows through the existing `FLAG_CLASS` / `FLAG_LABEL` / `FLAG_DESC` lookups (entries added for the new flag string), so it gets the same warn-amber styling, tooltip, and TR-48 forward-compat as the firmware-emitted flags.

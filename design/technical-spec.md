@@ -27,7 +27,7 @@ The reference examples in `documentation/webguiExample/` and `documentation/phpA
 10. [Windows tile SVG](#10-windows-tile-svg)
 11. [Freshness tile rendering](#11-freshness-tile-rendering)
 12. [HTTP status codes and silent-drop flow](#12-http-status-codes-and-silent-drop-flow)
-13. [Apache configuration (`.htaccess`)](#13-apache-configuration-htaccess)
+13. [Web-server configuration](#13-web-server-configuration) — Apache `.htaccess` (§ 13.1–13.3) and nginx server block (§ 13.4–13.6, including the `client_max_body_size` fix for the HTTP 413 trap on log uploads)
 14. [Verification plan](#14-verification-plan)
 15. [Testable requirements](#15-testable-requirements)
 
@@ -485,6 +485,20 @@ All payload-derived strings are written via `textContent`, never `innerHTML`.
 
 A `<div id="conn-banner" hidden>` at the top of the body. `showConnLostBanner()` removes its `hidden`. A subsequent successful `tick()` calls `hideConnLostBanner()` (omitted from the snippet for brevity).
 
+### 9.4 Mode-tile badges — `FLAG_CLASS` / `FLAG_LABEL` / `FLAG_DESC`
+
+The three lookup tables (class, label, tooltip) that turn `mode.flags[]` strings into badges are defined in [httproot/assets/app.js](../httproot/assets/app.js). The authoritative catalogue lives in the firmware-side spec — see [`technical-spec-statusWebsite.md` § 9.4](technical-spec-statusWebsite.md) — and the dashboard mirrors it verbatim so an operator sees the same words on the local controller GUI and on the public status page.
+
+Sixteen flag strings are known as of firmware 2.14.0 (contract 2.0):
+
+- **Alarm (red):** `wind_override`, `motor_alarm`.
+- **Warn (yellow):** `sensor_fault_temp`, `sensor_fault_wind`, `sensor_fault_position`, `m3_not_confirmed`, `m3_travel_short`, `m3_travel_long`, `ota_in_progress`, `calibrating`, `standby`, `net_backoff_active`, `wind_protect_off`.
+- **Info (blue):** `humidity_ctrl_off`, `coredump_available`, `rota_update_pending`.
+
+Plus one client-side synthetic string: `sd_not_mounted` (warn), added by `renderMode()` when `system.sd_mounted === false`. Behaviour under an unknown flag string is defined by TR-48 — silently drop, no console error.
+
+Dedup: when the mode pill is `WIND_OVERRIDE` / `WINDOW_CAL` / `MOTOR_ALARM` / `STANDBY`, the matching flag (`wind_override` / `calibrating` / `motor_alarm` / `standby`) is suppressed so each underlying state surfaces exactly once.
+
 ---
 
 ## 10. Windows tile SVG
@@ -647,15 +661,15 @@ Cross-method requests on the wrong file are rejected by step 1 of the correspond
 
 ---
 
-## 13. Apache configuration (`.htaccess`)
+## 13. Web-server configuration
 
-### 13.1 `data/.htaccess`
+### 13.1 Apache — `data/.htaccess`
 
 ```apache
 Require all denied
 ```
 
-### 13.2 `log/logs/.htaccess`
+### 13.2 Apache — `log/logs/.htaccess`
 
 ```apache
 Options -Indexes
@@ -674,7 +688,7 @@ This:
 - forces a plaintext content type and download disposition,
 - denies anything not matching the whitelist.
 
-### 13.3 Optional: gate `view.php` with Basic Auth
+### 13.3 Apache — optional Basic Auth on `view.php`
 
 Drop into the project root if dashboard privacy is later wanted:
 
@@ -688,6 +702,116 @@ Drop into the project root if dashboard privacy is later wanted:
 ```
 
 This affects only the read API. The controller-write path (`api.php`) is untouched.
+
+### 13.4 nginx — body-size limits for log uploads
+
+**This is the single most common failure mode on an nginx-fronted deploy.** nginx's `client_max_body_size` defaults to **1 MiB**, which is below the firmware's worst-case log-file size. The first time a real log file is pushed, nginx returns **HTTP 413 (Payload Too Large)** before `api.php` ever sees the request — the controller logs `log-upload fail with HTTP 413` and gives up on that file.
+
+Two layers must be raised, both to at least `GH_LOG_MAX_BYTES` (5 MiB out of the box):
+
+```nginx
+# /etc/nginx/sites-available/<site>.conf — inside the relevant server { } block,
+# OR /etc/nginx/nginx.conf at http { } level if you want it for every vhost
+server {
+    # … existing config …
+    client_max_body_size 10m;          # ≥ GH_LOG_MAX_BYTES, with cushion
+}
+```
+
+```ini
+; /etc/php/<version>/fpm/php.ini — also raise PHP's own limits, or PHP-FPM
+; will reject the body after nginx accepts it
+post_max_size       = 10M
+upload_max_filesize = 10M
+```
+
+Reload both layers:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+sudo systemctl reload php<version>-fpm
+```
+
+Verify (the wrong-secret POST should return 204 silently, not 413):
+
+```bash
+head -c 4M /dev/urandom > /tmp/probe.bin
+curl -i -X POST -H "sourceidentifier: anything" \
+     --data-binary @/tmp/probe.bin \
+     "https://<host>/<prefix>/api.php?action=log"
+```
+
+### 13.5 nginx — equivalent of the `.htaccess` hardening
+
+nginx does not honour `.htaccess` files. The deny-all on `data/` and the filename whitelist on `log/logs/` (TR-17 / TR-18 / TR-19) must be expressed in the server block:
+
+```nginx
+server {
+    server_name <host>;
+    root        /var/www/html/<prefix>;
+    index       index.php;
+
+    # PHP-FPM (adjust the socket path for your distro / PHP version)
+    location ~ \.php$ {
+        include       fastcgi_params;
+        fastcgi_pass  unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    client_max_body_size 10m;   # see § 13.4
+
+    # § 13.1 equivalent: deny direct access to data/ (TR-17)
+    location ^~ /data/ {
+        deny all;
+        return 403;
+    }
+
+    # § 13.2 equivalent: filename whitelist on log/logs/ (TR-18, TR-19)
+    location ^~ /log/logs/ {
+        autoindex off;                                   # no directory listings
+        location ~* ^/log/logs/[0-9A-Za-z._-]+\.(log|txt)$ {
+            default_type        text/plain;              # ForceType
+            add_header          Content-Disposition attachment;
+        }
+        # Anything not matching the whitelist above falls through to a deny.
+        location ~ /log/logs/ {
+            deny all;
+            return 403;
+        }
+    }
+
+    # Optional: block dotfiles (config.php, .htaccess relics, etc.)
+    location ~ /\. {
+        deny all;
+        return 403;
+    }
+}
+```
+
+Validate and reload:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Then re-run the verification probes from § 14.1.
+
+### 13.6 nginx — optional Basic Auth on `view.php`
+
+Equivalent of § 13.3 — gates the read API only, leaves `api.php` untouched:
+
+```nginx
+location = /view.php {
+    auth_basic           "Greenhouse status";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+    # delegate to PHP-FPM
+    include       fastcgi_params;
+    fastcgi_pass  unix:/run/php/php8.3-fpm.sock;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+}
+```
+
+Generate the password file with `htpasswd -c /etc/nginx/.htpasswd <user>`.
 
 ---
 

@@ -131,10 +131,11 @@ M3 (noordwand) staat bovenaan, M2 (noorddak) in het midden, M1 (zuiddak) onderaa
 |---|---|
 | Donkergroen | `CLOSED` (gesloten) |
 | Lichtblauw | `OPEN` (open) |
+| Lichtblauw met een percentage | `PART_OPEN` (getoond als `PART <n>%`) — normale toestand van M3 onder lineaire regeling: het raam is naar een gemeten stand gedreven en daar tot stilstand gebracht. Geen storing. |
 | Geel | `MOVING_OPEN` (het raam opent) of `MOVING_CLOSE` (het raam sluit zich) (getoond als `MOV OPEN` / `MOV CLOSE`) |
-| Grijs | `UNKNOWN` (controller weet de stand van het raam momenteel niet) |
+| Grijs | `UNKNOWN` (controller weet de stand van het raam momenteel niet) — of een nieuwe toestand die deze handleiding nog niet kent (de balk toont dan de onbekende naam gewoon als tekst). |
 
-Hover (of houd lang ingedrukt op een aanraakscherm) op een balk om de volledige, onafgekorte toestand als tooltip te zien.
+Hover (of houd lang ingedrukt op een aanraakscherm) op een balk om de volledige, onafgekorte toestand te zien; voor M3 verschijnt daar ook de actuele regelwet (`TIMED` of `LINEAR`) mét de reden en de status van de positiesensor.
 
 ### 3.5 Modus
 
@@ -165,14 +166,21 @@ Deze tegel laat twee dingen zien:
 | `MOTOR ALARM` | Rood | Een raammotor meldde een storing. |
 | `T/RH fault` | Geel | Temperatuur-/vochtsensor geeft geen geldige data door. |
 | `Wind fault` | Geel | Windsensor geeft geen geldige data door. |
+| `Window sensor fault` | Geel | De positiesensor van M3 is gemonteerd maar onbruikbaar; M3 valt terug op tijdgestuurde regeling. |
+| `M3 not confirmed` | Geel | De laatste beweging van M3 heeft de eindschakelaar niet bereikt waarnaar werd gestuurd. |
+| `M3 travel time too short` | Geel | De gemeten looptijd van M3 was korter dan de helft van de geconfigureerde looptijd. |
+| `M3 travel time too long` | Geel | De gemeten looptijd van M3 was langer dan de geconfigureerde looptijd. |
 | `OTA active` | Geel | Firmware- of asset-update via de lucht is bezig. |
 | `Calibrating` | Geel | Kalibratie van de raamstanden is bezig. |
+| `Standby` | Geel | De controller staat in standby (dezelfde toestand als het modus-label `STANDBY`). |
 | `Net backoff` | Geel | Netwerk-backoff — statusuploads zijn gepauzeerd na opeenvolgende mislukkingen. |
 | `Wind protect off` | Geel | De operator heeft de windbeveiliging op de controller uitgeschakeld. |
 | `Humidity ctrl off` | Blauw | De operator heeft de vochtgestuurde regeling uitgeschakeld. |
 | `Coredump available` | Blauw | Een crashdump van een eerdere controllerstoring staat klaar in flash. |
+| `Update pending` | Blauw | Een update is opgehaald en wacht op zijn toegewezen installatievenster. |
+| `SD-card` | Geel | De SD-kaart is niet gemonteerd — logbestanden en opgeslagen toestand zijn niet beschikbaar. |
 
-Wanneer het modus-label al `WIND_OVERRIDE`, `WINDOW_CAL` of `MOTOR_ALARM` toont, wordt de bijbehorende status-badge (`WIND`, `Calibrating`, `MOTOR ALARM`) onderdrukt zodat elke onderliggende toestand precies één keer zichtbaar is.
+Wanneer het modus-label al `WIND_OVERRIDE`, `WINDOW_CAL`, `MOTOR_ALARM` of `STANDBY` toont, wordt de bijbehorende status-badge (`WIND`, `Calibrating`, `MOTOR ALARM`, `Standby`) onderdrukt zodat elke onderliggende toestand precies één keer zichtbaar is.
 
 ### 3.6 Daglicht
 

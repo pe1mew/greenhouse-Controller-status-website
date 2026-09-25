@@ -66,13 +66,71 @@
     <form method="post" action="{{ url_for('set_window', wid=wid) }}" class="inline">
       <label>{{ wid }}</label>
       <select name="state">
-        {% for opt in ['OPEN','MOVING_OPEN','MOVING_CLOSE','CLOSED','UNKNOWN','GARBAGE'] %}
+        {% for opt in ['OPEN','PART_OPEN','MOVING_OPEN','MOVING_CLOSE','CLOSED','UNKNOWN','GARBAGE'] %}
           <option value="{{ opt }}" {% if state.windows[wid] == opt %}selected{% endif %}>{{ opt }}</option>
         {% endfor %}
       </select>
       <button>Apply</button>
     </form>
   {% endfor %}
+
+  <h3 style="margin-top:1em">M3 position &amp; control law (contract 2.0 — fw 2.7.1 / 2.12.0 / 2.13.0)</h3>
+  <p class="muted">
+    <code>PART_OPEN</code> above is the normal M3 state under linear control.
+    The percentage below is emitted only when a position sensor is fitted and trusted —
+    toggle <code>M3_sensor_fitted</code> to drop the position keys entirely (TR-51 both branches).
+    Values ≥ 1000 (=100 %) exercise the firmware's clamp-in-display rule; the parked-open
+    reading is around 1137 (113.7 %).
+  </p>
+
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <input type="hidden" name="path" value="windows.M3_percent_x10">
+    <label>M3_percent_x10</label>
+    <input type="number" name="value" min="0" max="1200" step="1"
+           value="{{ state.windows.get('M3_percent_x10', 0) }}">
+    <button>Set</button>
+  </form>
+
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <input type="hidden" name="path" value="M3_sensor_fitted">
+    <input type="hidden" name="value" value="{{ 'false' if state.M3_sensor_fitted else 'true' }}">
+    <button class="{{ 'on' if state.M3_sensor_fitted else 'off' }}">
+      M3_sensor_fitted: {{ 'ON' if state.M3_sensor_fitted else 'OFF' }} — click to toggle
+    </button>
+  </form>
+
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <input type="hidden" name="path" value="windows.M3_ctrl_mode">
+    <label>M3_ctrl_mode</label>
+    <select name="value">
+      {% for opt in ['TIMED','LINEAR'] %}
+        <option value="{{ opt }}" {% if state.windows.get('M3_ctrl_mode') == opt %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+    <button>Set</button>
+  </form>
+
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <input type="hidden" name="path" value="windows.M3_ctrl_reason">
+    <label>M3_ctrl_reason</label>
+    <select name="value">
+      {% for opt in ['setting','no_position','held_down','resumed'] %}
+        <option value="{{ opt }}" {% if state.windows.get('M3_ctrl_reason') == opt %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+    <button>Set</button>
+  </form>
+
+  <form method="post" action="{{ url_for('set_field') }}" class="inline">
+    <input type="hidden" name="path" value="windows.M3_pos_gate">
+    <label>M3_pos_gate</label>
+    <select name="value">
+      {% for opt in ['ok','probing','no_sensor','device_fault','end_sensors','not_fitted','bench_build'] %}
+        <option value="{{ opt }}" {% if state.windows.get('M3_pos_gate') == opt %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+    <button>Set</button>
+  </form>
 </section>
 
 <section>
@@ -177,21 +235,33 @@
   <h3 style="margin-top:1em">mode.flags (toggle to add / remove from payload)</h3>
   <p class="muted">
     Flags map to badges in the dashboard's Mode tile. Red = alarm, yellow = warn, blue = info.
-    The first three are auto-suppressed when the matching mode pill is showing (WIND_OVERRIDE, WINDOW_CAL, MOTOR_ALARM).
-    The <code>__unknown__</code> button is for verifying TR-48 (unknown flags must silently drop).
+    Sixteen known strings (contract 2.0, fw up to 2.14.0) plus the client-side synthetic
+    <code>sd_not_mounted</code> derived from <code>system.sd_mounted</code>.
+    The four flags <code>wind_override</code>, <code>calibrating</code>, <code>motor_alarm</code>,
+    and <code>standby</code> are auto-suppressed when the matching mode pill is already showing
+    (WIND_OVERRIDE, WINDOW_CAL, MOTOR_ALARM, STANDBY) — the state surfaces once.
+    <code>net_backoff_active</code> is defined in the contract but not yet emitted by the firmware
+    (breaker not wired as of 2.14.0). The <code>__unknown__</code> button verifies TR-48
+    (unknown flags must silently drop, no console error).
   </p>
   {% set FLAGS = [
-    ('wind_override',      'alarm'),
-    ('motor_alarm',        'alarm'),
-    ('sensor_fault_temp',  'warn'),
-    ('sensor_fault_wind',  'warn'),
-    ('ota_in_progress',    'warn'),
-    ('calibrating',        'warn'),
-    ('net_backoff_active', 'warn'),
-    ('wind_protect_off',   'warn'),
-    ('humidity_ctrl_off',  'info'),
-    ('coredump_available', 'info'),
-    ('__unknown__',        'unknown'),
+    ('wind_override',         'alarm'),
+    ('motor_alarm',           'alarm'),
+    ('sensor_fault_temp',     'warn'),
+    ('sensor_fault_wind',     'warn'),
+    ('sensor_fault_position', 'warn'),
+    ('m3_not_confirmed',      'warn'),
+    ('m3_travel_short',       'warn'),
+    ('m3_travel_long',        'warn'),
+    ('ota_in_progress',       'warn'),
+    ('calibrating',           'warn'),
+    ('standby',               'warn'),
+    ('net_backoff_active',    'warn'),
+    ('wind_protect_off',      'warn'),
+    ('humidity_ctrl_off',     'info'),
+    ('coredump_available',    'info'),
+    ('rota_update_pending',   'info'),
+    ('__unknown__',           'unknown'),
   ] %}
   {% for flag, kind in FLAGS %}
     {% set on = flag in state.mode.flags %}

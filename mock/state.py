@@ -16,7 +16,21 @@ DEFAULTS = {
                  'rh_max_active': 75, 'rh_min_active': 50,
                  'rh_ctrl_enabled': True},
     'wind':     {'speed_ms': 3.5, 'direction_deg': 180},
-    'windows':  {'M1': 'OPEN', 'M2': 'MOVING_OPEN', 'M3': 'CLOSED'},
+    'windows':  {'M1': 'OPEN', 'M2': 'MOVING_OPEN', 'M3': 'CLOSED',
+                 # M3 control-law block, always emitted with the windows block
+                 # per firmware contract 2.0 § 3.4. Position-sensor fields
+                 # (M3_percent_x10, M3_mm_x10, M3_at_end_sensor) are only
+                 # populated when the sensor is fitted and trusted; drop them
+                 # by setting M3_sensor_fitted = False below.
+                 'M3_ctrl_mode':      'LINEAR',
+                 'M3_ctrl_reason':    'setting',
+                 'M3_pos_gate':       'ok',
+                 'M3_percent_x10':    0,
+                 'M3_mm_x10':         0,
+                 'M3_at_end_sensor':  True},
+    # Toggle for whether M3_percent_x10 / M3_mm_x10 / M3_at_end_sensor appear
+    # in the payload. Emulates a controller without a position sensor.
+    'M3_sensor_fitted': True,
     'mode':     {'current': 'AUTOMATIC', 'flags': []},
     'sun':      {'is_daytime': True, 'sunrise_min': 360, 'sunset_min': 1260},
     'system':   {'ntp_synced': True, 'wifi_ip': '192.168.1.100',
@@ -60,6 +74,12 @@ def build_payload():
         if 'climate' in p and p['climate'].get('rh_ctrl_enabled') is False:
             p['climate'].pop('rh_min_active', None)
             p['climate'].pop('rh_max_active', None)
+        # Contract 2.0 § 3.4: M3_percent_x10 / M3_mm_x10 / M3_at_end_sensor are
+        # emitted only when a position sensor is fitted and trusted. Absent,
+        # not zero — so the dashboard can tell "no sensor" from "fully closed".
+        if 'windows' in p and not state.get('M3_sensor_fitted', True):
+            for k in ('M3_percent_x10', 'M3_mm_x10', 'M3_at_end_sensor'):
+                p['windows'].pop(k, None)
         return p
 
 

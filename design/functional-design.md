@@ -522,7 +522,9 @@ The controller decides which top-level objects to include. A missing top-level o
 | `wind.speed_ms` | number | m/s | Wind |
 | `wind.direction_deg` | integer | ° (0–359) | Wind |
 | `wind.direction_variation_deg` | integer | ° | accepted; not rendered |
-| `windows.M1` / `M2` / `M3` | enum string | — | Windows |
+| `windows.M1` / `M2` / `M3` | enum string | — | Windows. Includes `PART_OPEN` (fw 2.12.0) — a normal M3 state under linear control, drawn with the OPEN light-blue fill. Unknown state strings render neutrally with their raw text per the widened stability guarantee (contract 2.0 § 3.4). |
+| `windows.M3_percent_x10` | integer | 0.1 % | Appended to the M3 label as `<N>%` when present. Firmware does NOT clamp — parked-open reads ~1137 (113.7 %); dashboard clamps to 0–1000 for display. Absent when no position sensor is fitted or trusted. |
+| `windows.M3_ctrl_mode` / `M3_ctrl_reason` / `M3_pos_gate` | enum string | — | Appended to the M3 hover-title as `<mode> (<reason>, <gate>)` when present. Explains why the law in force differs from the setting. |
 | `mode.current` | enum string | — | Mode (pill). Vocabulary: `AUTOMATIC`, `STANDBY`, `WIND_OVERRIDE`, `WINDOW_CAL`, `MOTOR_ALARM`. |
 | `mode.flags` | string array | — | Mode (badges); duplicates of `mode.current` are suppressed |
 | `sun.is_daytime` | boolean | — | Daytime (icon) |
@@ -538,7 +540,7 @@ The controller decides which top-level objects to include. A missing top-level o
 | `system.uptime_s` | integer | s | System (uptime row, formatted) |
 | `system.ts_unix` / `time_iso` / `eg1` | various | — | accepted; not rendered |
 
-**Window state vocabulary:** `UNKNOWN`, `CLOSED`, `MOVING_OPEN`, `OPEN`, `MOVING_CLOSE`.
+**Window state vocabulary:** `UNKNOWN`, `CLOSED`, `MOVING_OPEN`, `OPEN`, `MOVING_CLOSE`, `PART_OPEN` (fw 2.12.0+). The dashboard treats this vocabulary as **open** per the widened field-stability guarantee (contract 2.0 § 3.4): a value added by a future firmware release renders neutrally with its raw text, never as a fault.
 
 **Server-added field on the read path:** time elapsed since the latest payload was received. The browser uses it to drive the freshness tile.
 
